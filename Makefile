@@ -6,8 +6,8 @@ help: ## Show this help
 tidy: ## Resolve and tidy Go module dependencies
 	cd server && go mod tidy
 
-run: ## Run the server locally (needs a reachable Postgres)
-	cd server && go run .
+run: ## Run the server locally (loads server/.env if present; needs a reachable Postgres)
+	cd server && set -a && { test -f .env && . ./.env || true; } && set +a && go run .
 
 build: ## Build the server binary into ./server/bin
 	cd server && go build -o bin/server .
