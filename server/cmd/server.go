@@ -8,11 +8,10 @@ import (
 	"expense-splitter/router"
 )
 
-// Execute wires up config, database, and router, then starts the HTTP server.
 func Execute() {
 	cfg := config.Load()
 
-	db, err := database.New(cfg.DatabaseURL)
+	db, err := database.New(cfg.Postgres.DSN())
 	if err != nil {
 		log.Fatal(err)
 	}

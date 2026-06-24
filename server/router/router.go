@@ -1,14 +1,14 @@
 package router
 
 import (
-	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/labstack/echo/v4"
 	"github.com/labstack/echo/v4/middleware"
 
 	"expense-splitter/handler"
+	"expense-splitter/types"
 )
 
-func New(db *pgxpool.Pool) *echo.Echo {
+func New(db *types.DBPool) *echo.Echo {
 	e := echo.New()
 	e.Use(middleware.Logger(), middleware.Recover())
 
