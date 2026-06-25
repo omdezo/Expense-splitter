@@ -5,6 +5,7 @@ import (
 
 	"expense-splitter/config"
 	"expense-splitter/database"
+	"expense-splitter/database/migration"
 	"expense-splitter/router"
 )
 
@@ -17,6 +18,10 @@ func Execute() {
 	}
 	defer db.Close()
 
-	e := router.New(db)
+	if err := migration.Run(db.Pool); err != nil {
+		log.Fatal(err)
+	}
+
+	e := router.New(db.Pool)
 	e.Logger.Fatal(e.Start(":" + cfg.Port))
 }

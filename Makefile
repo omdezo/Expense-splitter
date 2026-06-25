@@ -1,4 +1,4 @@
-.PHONY: help tidy run build up down logs ps health clean
+.PHONY: help tidy run build up down logs ps health db-reset clean
 
 help: ## Show this help
 	@grep -E '^[a-zA-Z_-]+:.*?## .*$$' $(MAKEFILE_LIST) | awk 'BEGIN {FS = ":.*?## "}; {printf "  %-10s %s\n", $$1, $$2}'
@@ -26,6 +26,9 @@ ps: ## Show running services
 
 health: ## Curl the health endpoint
 	curl -s http://localhost:8080/health
+
+db-reset: ## Drop the db volume and recreate (migrations re-run on server start; DESTROYS all data)
+	docker compose down -v && docker compose up --build -d
 
 clean: ## Stop containers and remove volumes
 	docker compose down -v
