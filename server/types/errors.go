@@ -2,23 +2,14 @@ package types
 
 import "net/http"
 
-// apiError is a JSON-serializable error response. Status is the HTTP status to
-// send and is omitted from the body. The type is unexported so values can only
-// be built through the constructors below; callers use the APIError alias.
 type apiError struct {
 	Status  int    `json:"-"`
 	Code    string `json:"code"`
 	Message string `json:"message"`
 }
 
-// Error implements the error interface so an APIError can be returned as a plain
-// error where convenient.
 func (e *apiError) Error() string { return e.Message }
 
-// APIError is the public handle for an application error. It is always a pointer
-// (the underlying struct is unexported), so handlers write
-// c.JSON(apiErr.Status, apiErr) and service signatures read (T, types.APIError)
-// with no leading '*'.
 type APIError = *apiError
 
 func NewAPIError(status int, code, message string) APIError {

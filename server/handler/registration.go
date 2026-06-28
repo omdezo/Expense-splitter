@@ -9,17 +9,16 @@ import (
 	"expense-splitter/types"
 )
 
-func (h *Handler) Me(c echo.Context) error {
+func (h *Handler) Register(c echo.Context) error {
 	identity := middleware.GetIdentity(c)
 	if identity == nil {
-
-		h.logger.Error("[Me] missing identity in context")
+		h.logger.Error("[Register] missing identity in context")
 		return c.JSON(http.StatusInternalServerError, types.NewServerError())
 	}
 
-	resp, apiErr := h.services.Me(c.Request().Context(), *identity)
+	p, apiErr := h.services.Register(c.Request().Context(), *identity)
 	if apiErr != nil {
 		return c.JSON(apiErr.Status, apiErr)
 	}
-	return c.JSON(http.StatusOK, resp)
+	return c.JSON(http.StatusCreated, p)
 }

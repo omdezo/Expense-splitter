@@ -5,9 +5,6 @@ import (
 	"expense-splitter/types"
 )
 
-// Handler holds the dependencies shared by all HTTP handlers — the service layer
-// and a logger. Handlers are methods on it so dependencies are explicit and the
-// set is easy to grow.
 type Handler struct {
 	services *services.Services
 	logger   *types.Logger

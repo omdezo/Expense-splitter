@@ -12,9 +12,6 @@ import (
 
 const identityContextKey = "auth.identity"
 
-// Auth provides Echo authentication middleware backed by a JWTValidator. It only
-// establishes *who* the caller is; authorization (what they may do) lives in
-// permissions.go and the service layer.
 type Auth struct {
 	cfg types.KeycloakConfig
 	jwt *JWTValidator
@@ -24,9 +21,6 @@ func NewAuth(cfg types.KeycloakConfig) *Auth {
 	return &Auth{cfg: cfg, jwt: NewJWTValidator(cfg)}
 }
 
-// Require rejects any request without a valid Keycloak bearer token. On success
-// it stores the authenticated identity in the context (read it with GetIdentity)
-// and calls the next handler.
 func (a *Auth) Require() echo.MiddlewareFunc {
 	return func(next echo.HandlerFunc) echo.HandlerFunc {
 		return func(c echo.Context) error {
@@ -54,8 +48,6 @@ func (a *Auth) Require() echo.MiddlewareFunc {
 	}
 }
 
-// GetIdentity returns the authenticated identity, or nil if the request did not
-// pass Require.
 func GetIdentity(c echo.Context) *types.Identity {
 	if v, ok := c.Get(identityContextKey).(*types.Identity); ok {
 		return v

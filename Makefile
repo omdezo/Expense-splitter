@@ -1,4 +1,4 @@
-.PHONY: help tidy run build up down logs ps health db-reset clean kc-token kc-logs sqlc sqlc-vet
+.PHONY: help tidy run build up down logs ps health db-reset clean kc-token kc-logs sqlc sqlc-vet seed
 
 # sqlc runs via Docker (the local Go toolchain is too old to `go install` it).
 SQLC_IMAGE := sqlc/sqlc:1.27.0
@@ -11,7 +11,10 @@ tidy: ## Resolve and tidy Go module dependencies
 	cd server && go mod tidy
 
 run: ## Run the server locally (loads server/.env if present; needs a reachable Postgres)
-	cd server && set -a && { test -f .env && . ./.env || true; } && set +a && go run .
+	cd server && set -a && { test -f .env && . ./.env || true; } && set +a && go run . serve
+
+seed: ## Seed the default global admin (runs inside the running server container)
+	docker compose exec server ./server seed
 
 build: ## Build the server binary into ./server/bin
 	cd server && go build -o bin/server .

@@ -7,4 +7,4 @@ FROM alpine:3.20
 WORKDIR /app
 COPY --from=builder /app/server .
 EXPOSE 8080
-CMD ["./server"]
+CMD ["./server", "serve"]

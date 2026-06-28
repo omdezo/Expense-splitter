@@ -12,11 +12,14 @@ func New(h *handler.Handler, auth *appmw.Auth) *echo.Echo {
 	e := echo.New()
 	e.Use(echomw.Logger(), echomw.Recover())
 
-	// Public — no authentication.
 	e.GET("/health", h.Health)
 
-	// Authenticated — requires a valid Keycloak bearer token.
 	e.GET("/me", h.Me, auth.Require())
+	e.POST("/register", h.Register, auth.Require())
+	e.POST("/verification", h.SubmitVerification, auth.Require())
+
+	e.POST("/admin/users/:id/approve", h.ApproveUser, auth.Require())
+	e.POST("/admin/users/:id/reject", h.RejectUser, auth.Require())
 
 	return e
 }

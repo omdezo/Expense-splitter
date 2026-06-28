@@ -10,16 +10,11 @@ import (
 	"expense-splitter/types"
 )
 
-// Sentinel errors from Validate so callers can map them to HTTP statuses.
 var (
 	ErrInvalidToken        = errors.New("invalid token")
 	ErrProviderUnavailable = errors.New("authentication provider unavailable")
 )
 
-// JWTValidator validates Keycloak access tokens: signature (against the realm
-// JWKS), issuer, audience and expiry. The JWKS is fetched lazily on first use
-// and refreshed in the background, so the server can start before Keycloak is
-// ready.
 type JWTValidator struct {
 	cfg     types.KeycloakConfig
 	parser  *jwt.Parser
@@ -43,9 +38,6 @@ func NewJWTValidator(cfg types.KeycloakConfig) *JWTValidator {
 	}
 }
 
-// Validate verifies the raw bearer token and returns the authenticated identity.
-// It returns ErrProviderUnavailable if the JWKS cannot be fetched, and
-// ErrInvalidToken for any validation failure.
 func (v *JWTValidator) Validate(raw string) (*types.Identity, error) {
 	kf, err := v.keys()
 	if err != nil {
@@ -63,8 +55,6 @@ func (v *JWTValidator) Validate(raw string) (*types.Identity, error) {
 	return identityFromClaims(mc), nil
 }
 
-// keys returns the JWKS keyfunc, building it on first call. A build failure
-// means Keycloak is unreachable; the next call retries.
 func (v *JWTValidator) keys() (keyfunc.Keyfunc, error) {
 	v.mu.Lock()
 	defer v.mu.Unlock()
@@ -79,8 +69,6 @@ func (v *JWTValidator) keys() (keyfunc.Keyfunc, error) {
 	return kf, nil
 }
 
-// checkIssuerAudience enforces issuer and audience beyond the signature/expiry
-// checks the parser already performs.
 func (v *JWTValidator) checkIssuerAudience(mc jwt.MapClaims) error {
 	if len(v.issuers) > 0 {
 		iss, _ := mc["iss"].(string)
@@ -109,8 +97,6 @@ func identityFromClaims(mc jwt.MapClaims) *types.Identity {
 	}
 }
 
-// audienceContains handles the `aud` claim being either a single string or an
-// array of strings, both of which Keycloak emits depending on configuration.
 func audienceContains(aud any, want string) bool {
 	switch v := aud.(type) {
 	case string:

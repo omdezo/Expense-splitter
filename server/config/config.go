@@ -24,6 +24,7 @@ func Load() *types.Config {
 			Issuers:  splitAndTrim(os.Getenv("KEYCLOAK_ISSUERS")),
 			Audience: os.Getenv("KEYCLOAK_AUDIENCE"),
 		},
+		GlobalAdminEmail: os.Getenv("GLOBAL_ADMIN_EMAIL"),
 	}
 
 	if cfg.Postgres.Host == "" {
@@ -48,6 +49,9 @@ func Load() *types.Config {
 	if cfg.Port == "" {
 		cfg.Port = "8080"
 	}
+	if cfg.GlobalAdminEmail == "" {
+		cfg.GlobalAdminEmail = "admin@expense-splitter.local"
+	}
 
 	log.Printf("config loaded: port=%s postgres=%s@%s:%s/%s sslmode=%s",
 		cfg.Port, cfg.Postgres.User, cfg.Postgres.Host,
@@ -63,8 +67,6 @@ func Load() *types.Config {
 	return cfg
 }
 
-// splitAndTrim turns a comma-separated env value into a slice, dropping blanks
-// and surrounding whitespace. Returns nil for an empty input.
 func splitAndTrim(s string) []string {
 	if strings.TrimSpace(s) == "" {
 		return nil

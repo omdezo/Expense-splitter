@@ -6,7 +6,6 @@ import (
 	"github.com/labstack/echo/v4"
 )
 
-// Health reports server and database liveness.
 func (h *Handler) Health(c echo.Context) error {
 	if err := h.services.Health(c.Request().Context()); err != nil {
 		return c.JSON(http.StatusServiceUnavailable, echo.Map{"status": "down", "database": "down"})

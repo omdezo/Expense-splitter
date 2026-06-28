@@ -3,24 +3,18 @@ package types
 import "fmt"
 
 type Config struct {
-	Port     string
-	Postgres PostgresConfig
-	Keycloak KeycloakConfig
+	Port             string
+	Postgres         PostgresConfig
+	Keycloak         KeycloakConfig
+	GlobalAdminEmail string
 }
 
-// KeycloakConfig holds what the auth middleware needs to validate Keycloak
-// access tokens. JWKSURL (where the signing keys are fetched) is kept separate
-// from Issuers (the `iss` values we trust) on purpose: in Docker the server
-// reaches Keycloak at an internal address while tokens are minted from the
-// host-published one, so the two rarely match.
 type KeycloakConfig struct {
 	JWKSURL  string
 	Issuers  []string
 	Audience string
 }
 
-// Enabled reports whether auth is configured. When false the auth middleware
-// rejects every request, since there is no way to validate a token.
 func (k KeycloakConfig) Enabled() bool {
 	return k.JWKSURL != ""
 }
