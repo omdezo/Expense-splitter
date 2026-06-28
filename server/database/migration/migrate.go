@@ -1,3 +1,4 @@
+// Package migration applies the SQL migrations under schema/ using goose.
 package migration
 
 import (
@@ -10,9 +11,11 @@ import (
 	"expense-splitter/types"
 )
 
-
+//go:embed schema/*.sql
 var embedMigrations embed.FS
 
+// Run applies all pending migrations from schema/ to the database. goose works
+// over database/sql, so the pgx pool is adapted with stdlib.OpenDBFromPool.
 func Run(pool *types.DBPool) error {
 	goose.SetBaseFS(embedMigrations)
 

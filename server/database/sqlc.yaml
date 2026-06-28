@@ -1,0 +1,12 @@
+version: "2"
+sql:
+  - engine: "postgresql"
+    # paths are relative to this file (server/database/)
+    schema: "migration/schema"
+    queries: "queries"
+    gen:
+      go:
+        package: "repo"
+        out: "repo"
+        sql_package: "pgx/v5"
+        emit_json_tags: true
