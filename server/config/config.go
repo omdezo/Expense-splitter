@@ -3,6 +3,7 @@ package config
 import (
 	"log"
 	"os"
+	"strings"
 
 	"expense-splitter/types"
 )
@@ -17,6 +18,11 @@ func Load() *types.Config {
 			Password: os.Getenv("DB_PASSWORD"),
 			Name:     os.Getenv("DB_NAME"),
 			SSLMode:  os.Getenv("DB_SSLMODE"),
+		},
+		Keycloak: types.KeycloakConfig{
+			JWKSURL:  os.Getenv("KEYCLOAK_JWKS_URL"),
+			Issuers:  splitAndTrim(os.Getenv("KEYCLOAK_ISSUERS")),
+			Audience: os.Getenv("KEYCLOAK_AUDIENCE"),
 		},
 	}
 
@@ -47,5 +53,28 @@ func Load() *types.Config {
 		cfg.Port, cfg.Postgres.User, cfg.Postgres.Host,
 		cfg.Postgres.Port, cfg.Postgres.Name, cfg.Postgres.SSLMode)
 
+	if cfg.Keycloak.Enabled() {
+		log.Printf("keycloak auth: jwks=%s issuers=%s audience=%s",
+			cfg.Keycloak.JWKSURL, strings.Join(cfg.Keycloak.Issuers, ","), cfg.Keycloak.Audience)
+	} else {
+		log.Print("keycloak auth: DISABLED (KEYCLOAK_JWKS_URL not set) — protected endpoints will reject all requests")
+	}
+
 	return cfg
+}
+
+// splitAndTrim turns a comma-separated env value into a slice, dropping blanks
+// and surrounding whitespace. Returns nil for an empty input.
+func splitAndTrim(s string) []string {
+	if strings.TrimSpace(s) == "" {
+		return nil
+	}
+	parts := strings.Split(s, ",")
+	out := make([]string, 0, len(parts))
+	for _, p := range parts {
+		if p = strings.TrimSpace(p); p != "" {
+			out = append(out, p)
+		}
+	}
+	return out
 }

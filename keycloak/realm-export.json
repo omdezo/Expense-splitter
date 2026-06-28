@@ -1,0 +1,84 @@
+{
+  "realm": "expense-splitter",
+  "enabled": true,
+  "sslRequired": "none",
+  "registrationAllowed": false,
+  "loginWithEmailAllowed": true,
+  "duplicateEmailsAllowed": false,
+  "verifyEmail": false,
+  "loginTheme": "expense-splitter",
+  "accountTheme": "expense-splitter",
+  "emailTheme": "expense-splitter",
+  "internationalizationEnabled": true,
+  "supportedLocales": ["en", "ar"],
+  "defaultLocale": "en",
+  "roles": {
+    "realm": [
+      {
+        "name": "global_admin",
+        "description": "Mirrors the application's global-admin concept. The DB (users.is_global_admin) remains the source of truth for authorization; this realm role is informational."
+      }
+    ]
+  },
+  "clients": [
+    {
+      "clientId": "expense-splitter-api",
+      "name": "Expense Splitter API",
+      "enabled": true,
+      "publicClient": true,
+      "standardFlowEnabled": true,
+      "directAccessGrantsEnabled": true,
+      "serviceAccountsEnabled": false,
+      "fullScopeAllowed": true,
+      "redirectUris": ["*"],
+      "webOrigins": ["*"],
+      "protocolMappers": [
+        {
+          "name": "audience-expense-splitter-api",
+          "protocol": "openid-connect",
+          "protocolMapper": "oidc-audience-mapper",
+          "consentRequired": false,
+          "config": {
+            "included.client.audience": "expense-splitter-api",
+            "id.token.claim": "false",
+            "access.token.claim": "true"
+          }
+        }
+      ]
+    }
+  ],
+  "users": [
+    {
+      "username": "admin@expense-splitter.local",
+      "email": "admin@expense-splitter.local",
+      "firstName": "Global",
+      "lastName": "Admin",
+      "emailVerified": true,
+      "enabled": true,
+      "credentials": [
+        {
+          "type": "password",
+          "value": "admin",
+          "temporary": false
+        }
+      ],
+      "realmRoles": ["default-roles-expense-splitter", "global_admin"]
+    },
+    {
+      "username": "alice@expense-splitter.local",
+      "email": "alice@expense-splitter.local",
+      "firstName": "Alice",
+      "lastName": "Member",
+      "emailVerified": true,
+      "enabled": true,
+      "credentials": [
+        {
+          "type": "password",
+          "value": "alice",
+          "temporary": false
+        }
+      ],
+      "realmRoles": ["default-roles-expense-splitter"]
+    }
+  ]
+}

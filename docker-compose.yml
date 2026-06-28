@@ -16,20 +16,78 @@ services:
       timeout: 5s
       retries: 5
 
+  # Keycloak's own database — kept separate from the application DB on purpose.
+  # An identity provider should never share storage with the app it protects.
+  keycloak-db:
+    image: postgres:16-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: keycloak
+      POSTGRES_PASSWORD: keycloak
+      POSTGRES_DB: keycloak
+    volumes:
+      - keycloak_pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U keycloak"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  keycloak:
+    # Custom image = stock Keycloak + our theme baked in (see keycloak/Dockerfile).
+    build:
+      context: ./keycloak
+    restart: unless-stopped
+    # dev mode (HTTP, no clustering) + auto-import the realm on first boot.
+    command: start-dev --import-realm
+    depends_on:
+      keycloak-db:
+        condition: service_healthy
+    environment:
+      # Bootstrap admin for the Keycloak admin console (http://localhost:8081).
+      KC_BOOTSTRAP_ADMIN_USERNAME: admin
+      KC_BOOTSTRAP_ADMIN_PASSWORD: admin
+      # Persist Keycloak state in its own Postgres.
+      KC_DB: postgres
+      KC_DB_URL: jdbc:postgresql://keycloak-db:5432/keycloak
+      KC_DB_USERNAME: keycloak
+      KC_DB_PASSWORD: keycloak
+      KC_HEALTH_ENABLED: "true"
+      KC_HTTP_ENABLED: "true"
+    volumes:
+      - ./keycloak/realm-export.json:/opt/keycloak/data/import/realm-export.json:ro
+      # Dev convenience: live-edit the theme without rebuilding the image
+      # (start-dev disables theme caching). Remove this mount in production —
+      # the theme is already baked into the image by the Dockerfile.
+      - ./keycloak/themes:/opt/keycloak/themes
+    ports:
+      - "8081:8080"
+
   server:
     build: ./server
     restart: unless-stopped
     depends_on:
       db:
         condition: service_healthy
+      keycloak:
+        condition: service_started
     environment:
       DB_HOST: db
       DB_PORT: 5432
       DB_USER: postgres
       DB_PASSWORD: postgres
       DB_NAME: expense_splitter
+      # Keys are fetched over the internal docker network (always reachable),
+      # while the issuer we trust is the address tokens are actually minted from
+      # (the host-published :8081). Validating these two independently avoids
+      # Keycloak's host/container issuer-mismatch problem. Both issuers are
+      # accepted so tokens minted from inside the network also pass.
+      KEYCLOAK_JWKS_URL: http://keycloak:8080/realms/expense-splitter/protocol/openid-connect/certs
+      KEYCLOAK_ISSUERS: http://localhost:8081/realms/expense-splitter,http://keycloak:8080/realms/expense-splitter
+      KEYCLOAK_AUDIENCE: expense-splitter-api
     ports:
       - "8080:8080"
 
 volumes:
   pgdata:
+  keycloak_pgdata:

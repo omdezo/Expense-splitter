@@ -1,0 +1,2 @@
+# Drop a logo/background here (e.g. logo.svg) and reference it from custom.css as
+# url("../img/logo.svg"). Keeps the resources/img directory in git when empty.

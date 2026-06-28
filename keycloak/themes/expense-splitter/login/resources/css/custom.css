@@ -1,0 +1,48 @@
+/* Expense Splitter — brand colors layered on Keycloak's native keycloak.v2
+ * (PatternFly 5) login. We override only CSS variables/colors; the markup stays
+ * Keycloak's own, so the page looks like standard Keycloak in our brand colors
+ * and remains upgrade-safe. Loaded after the base styles (see theme.properties). */
+
+:root {
+  --es-brand: #2563eb;
+  --es-brand-dark: #1e40af;
+
+  /* PatternFly 5 global accents (links, focus, primary color) */
+  --pf-v5-global--primary-color--100: var(--es-brand);
+  --pf-v5-global--primary-color--200: var(--es-brand-dark);
+  --pf-v5-global--link--Color: var(--es-brand);
+  --pf-v5-global--link--Color--hover: var(--es-brand-dark);
+}
+
+/* Page background */
+html,
+body,
+body.login-pf-page,
+.login-pf-page {
+  background: linear-gradient(135deg, #eef2ff 0%, #e0f2fe 100%) !important;
+}
+
+/* Primary "Sign in" button */
+.pf-v5-c-button.pf-m-primary {
+  --pf-v5-c-button--m-primary--BackgroundColor: var(--es-brand);
+  --pf-v5-c-button--m-primary--hover--BackgroundColor: var(--es-brand-dark);
+  --pf-v5-c-button--m-primary--active--BackgroundColor: var(--es-brand-dark);
+  --pf-v5-c-button--m-primary--focus--BackgroundColor: var(--es-brand-dark);
+}
+
+/* Inputs: brand-colored focus underline */
+.pf-v5-c-form-control {
+  --pf-v5-c-form-control--focus--BorderBottomColor: var(--es-brand);
+}
+
+/* Links (forgot-password / register / link-style buttons) */
+a,
+.pf-v5-c-button.pf-m-link {
+  color: var(--es-brand);
+  --pf-v5-c-button--m-link--Color: var(--es-brand);
+}
+
+a:hover,
+.pf-v5-c-button.pf-m-link:hover {
+  color: var(--es-brand-dark);
+}

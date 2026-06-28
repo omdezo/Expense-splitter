@@ -1,0 +1,9 @@
+# Theme build artifacts. We currently ship hand-written CSS, but if a build step
+# is added later (e.g. Sass/Tailwind compiling into resources/css), ignore its
+# inputs/outputs here so only the final committed CSS is tracked.
+
+node_modules/
+*.css.map
+
+# OS junk
+.DS_Store

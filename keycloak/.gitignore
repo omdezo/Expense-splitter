@@ -1,0 +1,15 @@
+# Keycloak local artifacts — keep the realm + theme source, ignore the noise.
+
+# OS / editor junk
+.DS_Store
+*.swp
+*~
+
+# Local realm dumps from `kc.sh export` (the committed realm-export.json is the
+# source of truth; ad-hoc exports shouldn't be committed)
+/export/
+*.exported.json
+
+# Runtime data / logs if a volume is ever mounted into the repo
+/data/
+*.log
