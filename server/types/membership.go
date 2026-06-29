@@ -1,14 +1,5 @@
 package types
 
-type VerificationStatus string
-
-const (
-	VerificationRegistered VerificationStatus = "registered"
-	VerificationPending    VerificationStatus = "pending_verification"
-	VerificationVerified   VerificationStatus = "verified"
-	VerificationRejected   VerificationStatus = "rejected"
-)
-
 type MembershipRole string
 
 const (
@@ -23,3 +14,17 @@ const (
 	MembershipApproved  MembershipStatus = "approved"
 	MembershipRejected  MembershipStatus = "rejected"
 )
+
+type Membership struct {
+	Role   MembershipRole
+	Status MembershipStatus
+}
+
+func (m Membership) Active() bool { return m.Status == MembershipApproved }
+
+func (m Membership) Satisfies(need MembershipRole) bool {
+	if need == RoleGroupAdmin {
+		return m.Role == RoleGroupAdmin
+	}
+	return true
+}

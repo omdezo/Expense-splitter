@@ -9,10 +9,11 @@ import (
 type Services struct {
 	db     *types.DBPool
 	logger *types.Logger
+	authz  GroupAuthorizer
 }
 
 func New(db *types.DBPool, logger *types.Logger) *Services {
-	return &Services{db: db, logger: logger}
+	return &Services{db: db, logger: logger, authz: NewAuthorizer(db, logger)}
 }
 
 func (s *Services) Health(ctx context.Context) error {
