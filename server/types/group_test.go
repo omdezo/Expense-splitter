@@ -10,6 +10,8 @@ func TestCreateGroupRequestValidate(t *testing.T) {
 	end := time.Date(2025, 6, 7, 18, 0, 0, 0, time.UTC)
 	neg := -1
 	zero := 0
+	validID := "11111111-1111-1111-1111-111111111111"
+	badID := "not-a-uuid"
 
 	cases := []struct {
 		name string
@@ -23,6 +25,8 @@ func TestCreateGroupRequestValidate(t *testing.T) {
 		{"missing end", CreateGroupRequest{Name: "Trip", StartDate: start}, false},
 		{"end before start", CreateGroupRequest{Name: "Trip", StartDate: end, EndDate: start}, false},
 		{"negative count", CreateGroupRequest{Name: "Trip", StartDate: start, EndDate: end, ExpectedMemberCount: &neg}, false},
+		{"valid admin_user_id", CreateGroupRequest{Name: "Trip", StartDate: start, EndDate: end, AdminUserID: &validID}, true},
+		{"bad admin_user_id", CreateGroupRequest{Name: "Trip", StartDate: start, EndDate: end, AdminUserID: &badID}, false},
 	}
 
 	for _, c := range cases {

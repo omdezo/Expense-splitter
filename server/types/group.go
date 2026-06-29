@@ -3,6 +3,8 @@ package types
 import (
 	"strings"
 	"time"
+
+	"github.com/google/uuid"
 )
 
 type GroupStatus string
@@ -30,6 +32,7 @@ type CreateGroupRequest struct {
 	StartDate           time.Time `json:"start_date"`
 	EndDate             time.Time `json:"end_date"`
 	ExpectedMemberCount *int      `json:"expected_member_count"`
+	AdminUserID         *string   `json:"admin_user_id"`
 }
 
 func (r *CreateGroupRequest) Validate() APIError {
@@ -47,6 +50,11 @@ func (r *CreateGroupRequest) Validate() APIError {
 	}
 	if r.ExpectedMemberCount != nil && *r.ExpectedMemberCount < 0 {
 		return NewBadRequestError("expected_member_count must be >= 0")
+	}
+	if r.AdminUserID != nil {
+		if _, err := uuid.Parse(*r.AdminUserID); err != nil {
+			return NewBadRequestError("admin_user_id must be a valid uuid")
+		}
 	}
 	return nil
 }
