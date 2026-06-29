@@ -1,8 +1,17 @@
-.PHONY: help tidy run build up down logs ps health db-reset clean kc-token kc-logs sqlc sqlc-vet seed
+.PHONY: help tidy run build up down logs ps health db-reset clean kc-token kc-logs sqlc sqlc-vet seed test test-unit test-integration test-e2e test-pkg
 
 # sqlc runs via Docker (the local Go toolchain is too old to `go install` it).
 SQLC_IMAGE := sqlc/sqlc:1.27.0
 SQLC_RUN   := docker run --rm -u "$$(id -u):$$(id -g)" -v "$(CURDIR)/server/database":/src -w /src $(SQLC_IMAGE)
+
+# Go tests run via the pinned toolchain container (the local Go is too old).
+# A persistent host cache dir is mounted so modules aren't re-downloaded and code
+# isn't recompiled on every run (the container itself is still throwaway).
+GO_CACHE := $(HOME)/.cache/expense-splitter-go
+GO_RUN   := docker run --rm -u "$$(id -u):$$(id -g)" -e HOME=/tmp -e GOCACHE=/cache/build -e GOMODCACHE=/cache/mod -v "$(GO_CACHE)":/cache -v "$(CURDIR)/server":/app -w /app golang:1.25
+
+# Default package selection for `test-pkg` (override on the command line).
+PKG ?= ./...
 
 help: ## Show this help
 	@grep -E '^[a-zA-Z_-]+:.*?## .*$$' $(MAKEFILE_LIST) | awk 'BEGIN {FS = ":.*?## "}; {printf "  %-10s %s\n", $$1, $$2}'
@@ -24,6 +33,24 @@ sqlc: ## Generate type-safe Go from SQL into server/database/repo (sqlc via Dock
 
 sqlc-vet: ## Lint the SQL queries (sqlc vet via Docker)
 	$(SQLC_RUN) vet
+
+$(GO_CACHE):
+	@mkdir -p $@
+
+test: | $(GO_CACHE) ## Run all Go tests (via Docker)
+	$(GO_RUN) go test ./...
+
+test-unit: | $(GO_CACHE) ## Run only the fast co-located unit tests (no DB/HTTP)
+	$(GO_RUN) sh -c 'go test $$(go list ./... | grep -v /test/)'
+
+test-integration: | $(GO_CACHE) ## Run DB-backed integration tests (needs the stack up)
+	$(GO_RUN) sh -c 'pkgs=$$(go list ./test/integration/... 2>/dev/null); [ -n "$$pkgs" ] && go test $$pkgs || echo "no integration tests yet"'
+
+test-e2e: | $(GO_CACHE) ## Run end-to-end tests (needs the stack up)
+	$(GO_RUN) sh -c 'pkgs=$$(go list ./test/e2e/... 2>/dev/null); [ -n "$$pkgs" ] && go test $$pkgs || echo "no e2e tests yet"'
+
+test-pkg: | $(GO_CACHE) ## Run one area's tests verbosely (e.g. make test-pkg PKG=./services/ RUN=DecideGroupRole)
+	$(GO_RUN) go test -v $(PKG) $(if $(RUN),-run $(RUN))
 
 up: ## Start db + server via docker compose
 	docker compose up --build -d

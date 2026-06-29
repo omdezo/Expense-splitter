@@ -9,7 +9,7 @@ import (
 type Services struct {
 	db     *types.DBPool
 	logger *types.Logger
-	authz  GroupAuthorizer
+	authz  Authorizer
 }
 
 func New(db *types.DBPool, logger *types.Logger) *Services {

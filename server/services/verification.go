@@ -52,8 +52,8 @@ func (s *Services) SetVerification(ctx context.Context, actor types.Identity, ta
 		s.logger.Errorw("set verification: resolve actor", "error", err)
 		return nil, types.NewServerError()
 	}
-	if !admin.IsGlobalAdmin {
-		return nil, types.NewForbiddenError("global admin only")
+	if apiErr := s.authz.RequireGlobalAdmin(admin); apiErr != nil {
+		return nil, apiErr
 	}
 
 	const q = `
