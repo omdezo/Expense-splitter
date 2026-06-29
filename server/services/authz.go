@@ -12,6 +12,7 @@ import (
 type Authorizer interface {
 	RequireGroupRole(ctx context.Context, p *types.Principal, groupID string, need types.MembershipRole) types.APIError
 	RequireGlobalAdmin(p *types.Principal) types.APIError
+	RequireVerified(p *types.Principal) types.APIError
 }
 
 type authorizer struct {
@@ -28,6 +29,13 @@ func (a *authorizer) RequireGlobalAdmin(p *types.Principal) types.APIError {
 		return nil
 	}
 	return types.NewForbiddenError("global admin only")
+}
+
+func (a *authorizer) RequireVerified(p *types.Principal) types.APIError {
+	if p.IsVerified() {
+		return nil
+	}
+	return types.NewForbiddenError("account is not verified")
 }
 
 func (a *authorizer) RequireGroupRole(ctx context.Context, p *types.Principal, groupID string, need types.MembershipRole) types.APIError {

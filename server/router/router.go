@@ -17,6 +17,7 @@ func New(h *handler.Handler, auth *appmw.Auth) *echo.Echo {
 	e.GET("/me", h.Me, auth.Require())
 	e.POST("/register", h.Register, auth.Require())
 	e.POST("/verification", h.SubmitVerification, auth.Require())
+	e.POST("/groups", h.CreateGroup, auth.Require())
 
 	e.POST("/admin/users/:id/approve", h.ApproveUser, auth.Require())
 	e.POST("/admin/users/:id/reject", h.RejectUser, auth.Require())

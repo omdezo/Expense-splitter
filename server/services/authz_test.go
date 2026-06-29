@@ -59,3 +59,16 @@ func TestRequireGlobalAdmin(t *testing.T) {
 		t.Fatalf("non-admin should be forbidden")
 	}
 }
+
+func TestRequireVerified(t *testing.T) {
+	a := NewAuthorizer(nil, nil)
+
+	if err := a.RequireVerified(&types.Principal{VerificationStatus: types.VerificationVerified}); err != nil {
+		t.Fatalf("verified should pass: %v", err)
+	}
+	for _, s := range []types.VerificationStatus{types.VerificationRegistered, types.VerificationPending, types.VerificationRejected} {
+		if err := a.RequireVerified(&types.Principal{VerificationStatus: s}); err == nil {
+			t.Fatalf("status %q should be forbidden", s)
+		}
+	}
+}

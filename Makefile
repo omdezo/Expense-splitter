@@ -5,8 +5,6 @@ SQLC_IMAGE := sqlc/sqlc:1.27.0
 SQLC_RUN   := docker run --rm -u "$$(id -u):$$(id -g)" -v "$(CURDIR)/server/database":/src -w /src $(SQLC_IMAGE)
 
 # Go tests run via the pinned toolchain container (the local Go is too old).
-# A persistent host cache dir is mounted so modules aren't re-downloaded and code
-# isn't recompiled on every run (the container itself is still throwaway).
 GO_CACHE := $(HOME)/.cache/expense-splitter-go
 GO_RUN   := docker run --rm -u "$$(id -u):$$(id -g)" -e HOME=/tmp -e GOCACHE=/cache/build -e GOMODCACHE=/cache/mod -v "$(GO_CACHE)":/cache -v "$(CURDIR)/server":/app -w /app golang:1.25
 
