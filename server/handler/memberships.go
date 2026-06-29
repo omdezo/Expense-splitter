@@ -55,6 +55,29 @@ func (h *Handler) ApproveMember(c echo.Context) error { return h.decideMember(c,
 
 func (h *Handler) RejectMember(c echo.Context) error { return h.decideMember(c, false) }
 
+func (h *Handler) PromoteToAdmin(c echo.Context) error {
+	identity := middleware.GetIdentity(c)
+	if identity == nil {
+		h.logger.Error("[PromoteToAdmin] missing identity in context")
+		return c.JSON(http.StatusInternalServerError, types.NewServerError())
+	}
+
+	groupID := c.Param("id")
+	userID := c.Param("userId")
+	if _, err := uuid.Parse(groupID); err != nil {
+		return c.JSON(http.StatusBadRequest, types.NewBadRequestError("invalid group id"))
+	}
+	if _, err := uuid.Parse(userID); err != nil {
+		return c.JSON(http.StatusBadRequest, types.NewBadRequestError("invalid user id"))
+	}
+
+	v, apiErr := h.services.TransferAdmin(c.Request().Context(), *identity, groupID, userID)
+	if apiErr != nil {
+		return c.JSON(apiErr.Status, apiErr)
+	}
+	return c.JSON(http.StatusOK, v)
+}
+
 func (h *Handler) decideMember(c echo.Context, approve bool) error {
 	identity := middleware.GetIdentity(c)
 	if identity == nil {

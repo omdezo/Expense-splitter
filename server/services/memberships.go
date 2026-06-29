@@ -133,3 +133,63 @@ ORDER BY m.created_at`
 	}
 	return out, nil
 }
+
+func (s *Services) TransferAdmin(ctx context.Context, id types.Identity, groupID, newAdminID string) (*types.MembershipView, types.APIError) {
+	caller, err := s.principalByKeycloakID(ctx, id.Subject)
+	switch {
+	case errors.Is(err, pgx.ErrNoRows):
+		return nil, types.NewForbiddenError("account not registered")
+	case err != nil:
+		s.logger.Errorw("transfer admin: resolve caller", "error", err)
+		return nil, types.NewServerError()
+	}
+	if apiErr := s.authz.RequireGroupRole(ctx, caller, groupID, types.RoleGroupAdmin); apiErr != nil {
+		return nil, apiErr
+	}
+
+	var role types.MembershipRole
+	var status types.MembershipStatus
+	err = s.db.QueryRow(ctx, `SELECT role, status FROM memberships WHERE group_id = $1::uuid AND user_id = $2::uuid`, groupID, newAdminID).Scan(&role, &status)
+	switch {
+	case errors.Is(err, pgx.ErrNoRows):
+		return nil, types.NewNotFoundError("user is not a member of this group")
+	case err != nil:
+		s.logger.Errorw("transfer admin: load target", "error", err)
+		return nil, types.NewServerError()
+	}
+	if status != types.MembershipApproved {
+		return nil, types.NewBadRequestError("new admin must be an approved member")
+	}
+	if role == types.RoleGroupAdmin {
+		return nil, types.NewConflictError("user is already the group admin")
+	}
+
+	tx, err := s.db.Begin(ctx)
+	if err != nil {
+		s.logger.Errorw("transfer admin: begin tx", "error", err)
+		return nil, types.NewServerError()
+	}
+	defer tx.Rollback(ctx)
+
+	// Demote the current admin FIRST: the one_group_admin_per_group index forbids
+	// two admins, so promoting before demoting would violate it.
+	if _, err := tx.Exec(ctx, `UPDATE memberships SET role = 'member', updated_at = now() WHERE group_id = $1::uuid AND role = 'group_admin'`, groupID); err != nil {
+		s.logger.Errorw("transfer admin: demote", "error", err)
+		return nil, types.NewServerError()
+	}
+
+	v := &types.MembershipView{GroupID: groupID, UserID: newAdminID}
+	if err := tx.QueryRow(ctx, `UPDATE memberships SET role = 'group_admin', updated_at = now() WHERE group_id = $1::uuid AND user_id = $2::uuid AND status = 'approved' RETURNING role, status, created_at`, groupID, newAdminID).
+		Scan(&v.Role, &v.Status, &v.CreatedAt); err != nil {
+		s.logger.Errorw("transfer admin: promote", "error", err)
+		return nil, types.NewServerError()
+	}
+
+	if err := tx.Commit(ctx); err != nil {
+		s.logger.Errorw("transfer admin: commit", "error", err)
+		return nil, types.NewServerError()
+	}
+
+	s.logger.Infow("group admin transferred", "group_id", groupID, "new_admin", newAdminID, "by", caller.UserID)
+	return v, nil
+}
