@@ -30,6 +30,8 @@ type RecordExpenseRequest struct {
 	OccurredOn  string          `json:"occurred_on"`
 }
 
+type UpdateExpenseRequest = RecordExpenseRequest
+
 func (r *RecordExpenseRequest) Validate() APIError {
 	if r.AmountBaisa <= 0 {
 		return NewBadRequestError("amount_baisa must be a positive integer")

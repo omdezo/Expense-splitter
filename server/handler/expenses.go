@@ -36,3 +36,34 @@ func (h *Handler) RecordExpense(c echo.Context) error {
 	}
 	return c.JSON(http.StatusCreated, e)
 }
+
+func (h *Handler) UpdateExpense(c echo.Context) error {
+	identity := middleware.GetIdentity(c)
+	if identity == nil {
+		h.logger.Error("[UpdateExpense] missing identity in context")
+		return c.JSON(http.StatusInternalServerError, types.NewServerError())
+	}
+
+	groupID := c.Param("id")
+	expenseID := c.Param("expenseId")
+	if _, err := uuid.Parse(groupID); err != nil {
+		return c.JSON(http.StatusBadRequest, types.NewBadRequestError("invalid group id"))
+	}
+	if _, err := uuid.Parse(expenseID); err != nil {
+		return c.JSON(http.StatusBadRequest, types.NewBadRequestError("invalid expense id"))
+	}
+
+	var req types.UpdateExpenseRequest
+	if err := c.Bind(&req); err != nil {
+		return c.JSON(http.StatusBadRequest, types.NewBadRequestError("invalid request body"))
+	}
+	if apiErr := req.Validate(); apiErr != nil {
+		return c.JSON(apiErr.Status, apiErr)
+	}
+
+	e, apiErr := h.services.UpdateExpense(c.Request().Context(), *identity, groupID, expenseID, req)
+	if apiErr != nil {
+		return c.JSON(apiErr.Status, apiErr)
+	}
+	return c.JSON(http.StatusOK, e)
+}

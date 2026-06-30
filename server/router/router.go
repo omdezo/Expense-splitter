@@ -21,6 +21,7 @@ func New(h *handler.Handler, auth *appmw.Auth) *echo.Echo {
 	e.POST("/groups/join", h.JoinGroup, auth.Require())
 	e.POST("/groups/:id/close", h.CloseGroup, auth.Require())
 	e.POST("/groups/:id/expenses", h.RecordExpense, auth.Require())
+	e.PATCH("/groups/:id/expenses/:expenseId", h.UpdateExpense, auth.Require())
 	e.GET("/groups/:id/requests", h.ListJoinRequests, auth.Require())
 	e.POST("/groups/:id/members/:userId/approve", h.ApproveMember, auth.Require())
 	e.POST("/groups/:id/members/:userId/reject", h.RejectMember, auth.Require())
