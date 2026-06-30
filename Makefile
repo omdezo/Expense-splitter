@@ -1,4 +1,4 @@
-.PHONY: help tidy run build up down logs ps health db-reset clean kc-token kc-logs sqlc sqlc-vet seed test test-unit test-integration test-e2e test-pkg
+.PHONY: help tidy run build up down logs ps health db-reset clean kc-token kc-logs sqlc sqlc-vet seed test test-unit test-integration test-e2e test-pkg test-file
 
 # sqlc runs via Docker (the local Go toolchain is too old to `go install` it).
 SQLC_IMAGE := sqlc/sqlc:1.27.0
@@ -48,7 +48,16 @@ test-e2e: | $(GO_CACHE) ## Run end-to-end tests (needs the stack up)
 	$(GO_RUN) sh -c 'pkgs=$$(go list ./test/e2e/... 2>/dev/null); [ -n "$$pkgs" ] && go test $$pkgs || echo "no e2e tests yet"'
 
 test-pkg: | $(GO_CACHE) ## Run one area's tests verbosely (e.g. make test-pkg PKG=./services/ RUN=DecideGroupRole)
-	$(GO_RUN) go test -v $(PKG) $(if $(RUN),-run $(RUN))
+	$(GO_RUN) go test -v $(PKG) $(if $(RUN),-run '$(RUN)')
+
+test-file: | $(GO_CACHE) ## Run only the tests defined in one file (FILE=services/settlement_test.go)
+	@test -n "$(FILE)" || { echo "usage: make test-file FILE=services/<name>_test.go"; exit 1; }
+	@f="$(FILE)"; f=$${f#server/}; \
+		names=$$(grep -oE '^func Test[[:alnum:]_]+' "server/$$f" | awk '{print $$2}' | tr '\n' '|' | sed 's/|$$//'); \
+		test -n "$$names" || { echo "no Test functions found in $$f"; exit 1; }; \
+		dir=$$(dirname "$$f"); \
+		echo ">> $$f  ->  -run '$$names'"; \
+		$(GO_RUN) go test -v "./$$dir/" -run "$$names"
 
 up: ## Start db + server via docker compose
 	docker compose up --build -d
