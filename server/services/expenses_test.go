@@ -89,6 +89,24 @@ func TestTruncateDescriptionSpecExample(t *testing.T) {
 	}
 }
 
+func TestEscapeLike(t *testing.T) {
+	cases := []struct{ in, want string }{
+		{"plain", "plain"},
+		{"dinner at the bar", "dinner at the bar"},
+		{"50%", `50\%`},
+		{"a_b", `a\_b`},
+		{`c:\trip`, `c:\\trip`},
+		{`%_\`, `\%\_\\`},
+	}
+	for _, c := range cases {
+		got := escapeLike(c.in)
+		if got != c.want {
+			t.Errorf("escapeLike(%q) = %q, want %q", c.in, got, c.want)
+		}
+		t.Logf("escapeLike(%q) -> %q", c.in, got)
+	}
+}
+
 func TestTruncateDescriptionSingleHugeWord(t *testing.T) {
 	input := strings.Repeat("z", 100) // no spaces -> nothing to break on
 	got := truncateDescription(input)

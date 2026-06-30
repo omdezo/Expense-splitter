@@ -14,6 +14,13 @@ import (
 
 const descriptionMaxLen = 80
 
+// escapeLike neutralises LIKE/ILIKE wildcards in a user search term so it is
+// matched literally. Paired with `ESCAPE '\'`, a query of "50%" finds the text
+// "50%" rather than treating % as "match anything".
+func escapeLike(s string) string {
+	return strings.NewReplacer(`\`, `\\`, `%`, `\%`, `_`, `\_`).Replace(s)
+}
+
 // truncateDescription enforces req #11: a listed description is at most 80
 // characters; longer ones are cut on a word boundary and suffixed with "..."
 // so the last kept word is always complete ("dinner at the ...", never
@@ -146,8 +153,8 @@ WHERE e.group_id = $1::uuid AND e.deleted_at IS NULL`
 		q += fmt.Sprintf(" AND m.user_id = $%d::uuid", len(args))
 	}
 	if filter.Search != "" {
-		args = append(args, filter.Search)
-		q += fmt.Sprintf(" AND e.description ILIKE '%%' || $%d || '%%'", len(args))
+		args = append(args, escapeLike(filter.Search))
+		q += fmt.Sprintf(" AND e.description ILIKE ('%%' || $%d || '%%') ESCAPE '\\'", len(args))
 	}
 	q += " ORDER BY e.occurred_on, e.created_at"
 
