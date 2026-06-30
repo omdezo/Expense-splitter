@@ -3,11 +3,42 @@ package services
 import (
 	"context"
 	"errors"
+	"fmt"
+	"strings"
+	"unicode/utf8"
 
 	"github.com/jackc/pgx/v5"
 
 	"expense-splitter/types"
 )
+
+const descriptionMaxLen = 80
+
+// truncateDescription enforces req #11: a listed description is at most 80
+// characters; longer ones are cut on a word boundary and suffixed with "..."
+// so the last kept word is always complete ("dinner at the ...", never
+// "dinner at the har..."). Rune-aware so multibyte text is never split.
+func truncateDescription(s string) string {
+	const ellipsis = "..."
+	if utf8.RuneCountInString(s) <= descriptionMaxLen {
+		return s
+	}
+	runes := []rune(s)
+	budget := runes[:descriptionMaxLen-len(ellipsis)]
+
+	lastSpace := -1
+	for i := len(budget) - 1; i >= 0; i-- {
+		if budget[i] == ' ' {
+			lastSpace = i
+			break
+		}
+	}
+	if lastSpace < 0 {
+		return string(budget) + ellipsis
+	}
+	head := strings.TrimRight(string(budget[:lastSpace]), " ")
+	return head + " " + ellipsis
+}
 
 func (s *Services) RecordExpense(ctx context.Context, id types.Identity, groupID string, req types.RecordExpenseRequest) (*types.Expense, types.APIError) {
 	caller, err := s.principalByKeycloakID(ctx, id.Subject)
@@ -85,6 +116,64 @@ RETURNING id, created_at`
 	}
 
 	return e, nil
+}
+
+func (s *Services) ListExpenses(ctx context.Context, id types.Identity, groupID string, filter types.ExpenseFilter) ([]types.Expense, types.APIError) {
+	caller, err := s.principalByKeycloakID(ctx, id.Subject)
+	switch {
+	case errors.Is(err, pgx.ErrNoRows):
+		return nil, types.NewForbiddenError("account not registered")
+	case err != nil:
+		s.logger.Errorw("list expenses: resolve caller", "error", err)
+		return nil, types.NewServerError()
+	}
+	if apiErr := s.authz.RequireGroupRole(ctx, caller, groupID, types.RoleMember); apiErr != nil {
+		return nil, apiErr
+	}
+
+	q := `
+SELECT e.id, m.user_id, e.amount_baisa, e.category, e.description, e.occurred_on::text, e.created_at
+FROM expenses e
+JOIN memberships m ON m.id = e.paid_by
+WHERE e.group_id = $1::uuid AND e.deleted_at IS NULL`
+	args := []any{groupID}
+	if filter.Category != "" {
+		args = append(args, string(filter.Category))
+		q += fmt.Sprintf(" AND e.category = $%d::expense_category", len(args))
+	}
+	if filter.PaidBy != "" {
+		args = append(args, filter.PaidBy)
+		q += fmt.Sprintf(" AND m.user_id = $%d::uuid", len(args))
+	}
+	if filter.Search != "" {
+		args = append(args, filter.Search)
+		q += fmt.Sprintf(" AND e.description ILIKE '%%' || $%d || '%%'", len(args))
+	}
+	q += " ORDER BY e.occurred_on, e.created_at"
+
+	rows, err := s.db.Query(ctx, q, args...)
+	if err != nil {
+		s.logger.Errorw("list expenses: query", "error", err)
+		return nil, types.NewServerError()
+	}
+	defer rows.Close()
+
+	out := []types.Expense{}
+	for rows.Next() {
+		var e types.Expense
+		e.GroupID = groupID
+		if err := rows.Scan(&e.ID, &e.PaidBy, &e.AmountBaisa, &e.Category, &e.Description, &e.OccurredOn, &e.CreatedAt); err != nil {
+			s.logger.Errorw("list expenses: scan", "error", err)
+			return nil, types.NewServerError()
+		}
+		e.Description = truncateDescription(e.Description)
+		out = append(out, e)
+	}
+	if err := rows.Err(); err != nil {
+		s.logger.Errorw("list expenses: rows", "error", err)
+		return nil, types.NewServerError()
+	}
+	return out, nil
 }
 
 type expenseAmountAudit struct {

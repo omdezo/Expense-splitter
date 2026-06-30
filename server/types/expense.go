@@ -48,6 +48,12 @@ func (r *RecordExpenseRequest) Validate() APIError {
 	return nil
 }
 
+type ExpenseFilter struct {
+	Category ExpenseCategory
+	PaidBy   string
+	Search   string
+}
+
 type Expense struct {
 	ID          string          `json:"id"`
 	GroupID     string          `json:"group_id"`

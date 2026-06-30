@@ -37,6 +37,40 @@ func (h *Handler) RecordExpense(c echo.Context) error {
 	return c.JSON(http.StatusCreated, e)
 }
 
+func (h *Handler) ListExpenses(c echo.Context) error {
+	identity := middleware.GetIdentity(c)
+	if identity == nil {
+		h.logger.Error("[ListExpenses] missing identity in context")
+		return c.JSON(http.StatusInternalServerError, types.NewServerError())
+	}
+
+	groupID := c.Param("id")
+	if _, err := uuid.Parse(groupID); err != nil {
+		return c.JSON(http.StatusBadRequest, types.NewBadRequestError("invalid group id"))
+	}
+
+	var filter types.ExpenseFilter
+	if cat := c.QueryParam("category"); cat != "" {
+		filter.Category = types.ExpenseCategory(cat)
+		if !filter.Category.Valid() {
+			return c.JSON(http.StatusBadRequest, types.NewBadRequestError("category must be one of: lodging, fuel, food, transport, other"))
+		}
+	}
+	if payer := c.QueryParam("paid_by"); payer != "" {
+		if _, err := uuid.Parse(payer); err != nil {
+			return c.JSON(http.StatusBadRequest, types.NewBadRequestError("paid_by must be a valid user id"))
+		}
+		filter.PaidBy = payer
+	}
+	filter.Search = c.QueryParam("q")
+
+	list, apiErr := h.services.ListExpenses(c.Request().Context(), *identity, groupID, filter)
+	if apiErr != nil {
+		return c.JSON(apiErr.Status, apiErr)
+	}
+	return c.JSON(http.StatusOK, list)
+}
+
 func (h *Handler) UpdateExpense(c echo.Context) error {
 	identity := middleware.GetIdentity(c)
 	if identity == nil {
