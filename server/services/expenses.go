@@ -26,9 +26,7 @@ func (s *Services) RecordExpense(ctx context.Context, id types.Identity, groupID
 	}
 	defer tx.Rollback(ctx)
 
-	// Group must be open and the date in range. FOR SHARE serializes against a
-	// concurrent close (which takes FOR UPDATE) so an expense can't land after
-	// the settlement snapshot is taken.
+	
 	var status types.GroupStatus
 	var inRange bool
 	err = tx.QueryRow(ctx,

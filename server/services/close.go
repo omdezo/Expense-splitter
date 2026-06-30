@@ -30,8 +30,7 @@ func (s *Services) CloseGroup(ctx context.Context, id types.Identity, groupID st
 	}
 	defer tx.Rollback(ctx)
 
-	// Lock the group row and verify it is open — guarantees close + settlement
-	// happen exactly once over a consistent snapshot.
+	
 	var status types.GroupStatus
 	err = tx.QueryRow(ctx, `SELECT status FROM groups WHERE id = $1::uuid FOR UPDATE`, groupID).Scan(&status)
 	switch {
@@ -45,7 +44,6 @@ func (s *Services) CloseGroup(ctx context.Context, id types.Identity, groupID st
 		return nil, types.NewConflictError("group is not open")
 	}
 
-	// Approved members, ordered by user_id so the remainder distribution is stable.
 	type member struct{ membershipID, userID string }
 	var members []member
 	rows, err := tx.Query(ctx, `SELECT id, user_id FROM memberships WHERE group_id = $1::uuid AND status = 'approved' ORDER BY user_id`, groupID)
@@ -68,7 +66,7 @@ func (s *Services) CloseGroup(ctx context.Context, id types.Identity, groupID st
 		return nil, types.NewServerError()
 	}
 
-	// Amount each member paid (expenses.paid_by is the membership id).
+
 	paid := map[string]int64{}
 	prows, err := tx.Query(ctx, `SELECT paid_by, SUM(amount_baisa) FROM expenses WHERE group_id = $1::uuid AND deleted_at IS NULL GROUP BY paid_by`, groupID)
 	if err != nil {
@@ -91,7 +89,7 @@ func (s *Services) CloseGroup(ctx context.Context, id types.Identity, groupID st
 		return nil, types.NewServerError()
 	}
 
-	// Spend per category for the snapshot.
+	
 	spendPerCategory := map[string]int64{}
 	crows, err := tx.Query(ctx, `SELECT category, SUM(amount_baisa) FROM expenses WHERE group_id = $1::uuid AND deleted_at IS NULL GROUP BY category`, groupID)
 	if err != nil {

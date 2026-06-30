@@ -9,36 +9,30 @@ import (
 	"expense-splitter/types"
 )
 
-type Authorizer interface {
-	RequireGroupRole(ctx context.Context, p *types.Principal, groupID string, need types.MembershipRole) types.APIError
-	RequireGlobalAdmin(p *types.Principal) types.APIError
-	RequireVerified(p *types.Principal) types.APIError
-}
-
-type authorizer struct {
+type Authorizer struct {
 	db     *types.DBPool
 	logger *types.Logger
 }
 
-func NewAuthorizer(db *types.DBPool, logger *types.Logger) Authorizer {
-	return &authorizer{db: db, logger: logger}
+func NewAuthorizer(db *types.DBPool, logger *types.Logger) *Authorizer {
+	return &Authorizer{db: db, logger: logger}
 }
 
-func (a *authorizer) RequireGlobalAdmin(p *types.Principal) types.APIError {
+func (a *Authorizer) RequireGlobalAdmin(p *types.Principal) types.APIError {
 	if p.IsGlobalAdmin {
 		return nil
 	}
 	return types.NewForbiddenError("global admin only")
 }
 
-func (a *authorizer) RequireVerified(p *types.Principal) types.APIError {
+func (a *Authorizer) RequireVerified(p *types.Principal) types.APIError {
 	if p.IsVerified() {
 		return nil
 	}
 	return types.NewForbiddenError("account is not verified")
 }
 
-func (a *authorizer) RequireGroupRole(ctx context.Context, p *types.Principal, groupID string, need types.MembershipRole) types.APIError {
+func (a *Authorizer) RequireGroupRole(ctx context.Context, p *types.Principal, groupID string, need types.MembershipRole) types.APIError {
 	m, err := a.membership(ctx, groupID, p.UserID)
 	found := true
 	switch {
@@ -67,7 +61,7 @@ func decideGroupRole(p *types.Principal, m types.Membership, found bool, need ty
 	return nil
 }
 
-func (a *authorizer) membership(ctx context.Context, groupID, userID string) (types.Membership, error) {
+func (a *Authorizer) membership(ctx context.Context, groupID, userID string) (types.Membership, error) {
 	var m types.Membership
 	err := a.db.QueryRow(ctx,
 		`SELECT role, status FROM memberships WHERE group_id = $1::uuid AND user_id = $2::uuid`,
