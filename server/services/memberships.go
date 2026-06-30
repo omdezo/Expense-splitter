@@ -193,3 +193,54 @@ func (s *Services) TransferAdmin(ctx context.Context, id types.Identity, groupID
 	s.logger.Infow("group admin transferred", "group_id", groupID, "new_admin", newAdminID, "by", caller.UserID)
 	return v, nil
 }
+
+func (s *Services) RemoveMember(ctx context.Context, id types.Identity, groupID, targetUserID string) types.APIError {
+	caller, err := s.principalByKeycloakID(ctx, id.Subject)
+	switch {
+	case errors.Is(err, pgx.ErrNoRows):
+		return types.NewForbiddenError("account not registered")
+	case err != nil:
+		s.logger.Errorw("remove member: resolve caller", "error", err)
+		return types.NewServerError()
+	}
+
+	// Removing someone else needs group-admin (global admin passes implicitly);
+	// removing yourself is allowed for any member.
+	if targetUserID != caller.UserID {
+		if apiErr := s.authz.RequireGroupRole(ctx, caller, groupID, types.RoleGroupAdmin); apiErr != nil {
+			return apiErr
+		}
+	}
+
+	var membershipID string
+	var role types.MembershipRole
+	err = s.db.QueryRow(ctx, `SELECT id, role FROM memberships WHERE group_id = $1::uuid AND user_id = $2::uuid`, groupID, targetUserID).Scan(&membershipID, &role)
+	switch {
+	case errors.Is(err, pgx.ErrNoRows):
+		return types.NewNotFoundError("user is not a member of this group")
+	case err != nil:
+		s.logger.Errorw("remove member: load membership", "error", err)
+		return types.NewServerError()
+	}
+
+	if role == types.RoleGroupAdmin {
+		return types.NewConflictError("the group admin must transfer the role before being removed")
+	}
+
+	var hasExpenses bool
+	if err := s.db.QueryRow(ctx, `SELECT EXISTS(SELECT 1 FROM expenses WHERE group_id = $1::uuid AND paid_by = $2::uuid)`, groupID, membershipID).Scan(&hasExpenses); err != nil {
+		s.logger.Errorw("remove member: check expenses", "error", err)
+		return types.NewServerError()
+	}
+	if hasExpenses {
+		return types.NewConflictError("cannot remove a member who has recorded expenses")
+	}
+
+	if _, err := s.db.Exec(ctx, `DELETE FROM memberships WHERE id = $1::uuid`, membershipID); err != nil {
+		s.logger.Errorw("remove member: delete", "error", err)
+		return types.NewServerError()
+	}
+
+	s.logger.Infow("member removed", "group_id", groupID, "user_id", targetUserID, "by", caller.UserID)
+	return nil
+}

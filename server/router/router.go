@@ -23,6 +23,7 @@ func New(h *handler.Handler, auth *appmw.Auth) *echo.Echo {
 	e.POST("/groups/:id/members/:userId/approve", h.ApproveMember, auth.Require())
 	e.POST("/groups/:id/members/:userId/reject", h.RejectMember, auth.Require())
 	e.POST("/groups/:id/members/:userId/promote", h.PromoteToAdmin, auth.Require())
+	e.DELETE("/groups/:id/members/:userId", h.RemoveMember, auth.Require())
 
 	e.POST("/admin/users/:id/approve", h.ApproveUser, auth.Require())
 	e.POST("/admin/users/:id/reject", h.RejectUser, auth.Require())

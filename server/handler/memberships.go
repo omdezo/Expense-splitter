@@ -78,6 +78,28 @@ func (h *Handler) PromoteToAdmin(c echo.Context) error {
 	return c.JSON(http.StatusOK, v)
 }
 
+func (h *Handler) RemoveMember(c echo.Context) error {
+	identity := middleware.GetIdentity(c)
+	if identity == nil {
+		h.logger.Error("[RemoveMember] missing identity in context")
+		return c.JSON(http.StatusInternalServerError, types.NewServerError())
+	}
+
+	groupID := c.Param("id")
+	userID := c.Param("userId")
+	if _, err := uuid.Parse(groupID); err != nil {
+		return c.JSON(http.StatusBadRequest, types.NewBadRequestError("invalid group id"))
+	}
+	if _, err := uuid.Parse(userID); err != nil {
+		return c.JSON(http.StatusBadRequest, types.NewBadRequestError("invalid user id"))
+	}
+
+	if apiErr := h.services.RemoveMember(c.Request().Context(), *identity, groupID, userID); apiErr != nil {
+		return c.JSON(apiErr.Status, apiErr)
+	}
+	return c.NoContent(http.StatusNoContent)
+}
+
 func (h *Handler) decideMember(c echo.Context, approve bool) error {
 	identity := middleware.GetIdentity(c)
 	if identity == nil {
