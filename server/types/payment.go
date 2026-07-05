@@ -22,6 +22,9 @@ type PaymentView struct {
 }
 
 type SettlementPlanResponse struct {
-	GroupID  string        `json:"group_id"`
-	Payments []PaymentView `json:"payments"`
+	GroupID      string        `json:"group_id"`
+	GroupStatus  GroupStatus   `json:"group_status"`
+	SettledCount int           `json:"settled_count"`
+	TotalCount   int           `json:"total_count"`
+	Payments     []PaymentView `json:"payments"`
 }

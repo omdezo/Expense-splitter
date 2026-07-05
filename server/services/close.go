@@ -123,6 +123,15 @@ func (s *Services) CloseGroup(ctx context.Context, id types.Identity, groupID st
 		}
 	}
 
+	// A plan with zero transfers has nothing to confirm: every payment (all
+	// none of them) is settled, so the group is fully settled at close.
+	if len(plan) == 0 {
+		if err := qtx.MarkGroupSettled(ctx, groupID); err != nil {
+			s.logger.Errorw("close: mark group settled", "error", err)
+			return nil, types.NewServerError()
+		}
+	}
+
 	if err := tx.Commit(ctx); err != nil {
 		s.logger.Errorw("close: commit", "error", err)
 		return nil, types.NewServerError()

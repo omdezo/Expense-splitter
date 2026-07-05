@@ -12,6 +12,50 @@ import (
 	"expense-splitter/types"
 )
 
+const countUnsettledPayments = `-- name: CountUnsettledPayments :one
+SELECT COUNT(*)::bigint AS unsettled
+FROM payments
+WHERE group_id = $1::uuid AND status <> 'settled'
+`
+
+func (q *Queries) CountUnsettledPayments(ctx context.Context, groupID string) (int64, error) {
+	row := q.db.QueryRow(ctx, countUnsettledPayments, groupID)
+	var unsettled int64
+	err := row.Scan(&unsettled)
+	return unsettled, err
+}
+
+const getPayment = `-- name: GetPayment :one
+SELECT id, group_id, from_user_id, to_user_id, amount_baisa, status, version
+FROM payments
+WHERE id = $1::uuid
+`
+
+type GetPaymentRow struct {
+	ID          string              `json:"id"`
+	GroupID     string              `json:"group_id"`
+	FromUserID  string              `json:"from_user_id"`
+	ToUserID    string              `json:"to_user_id"`
+	AmountBaisa int64               `json:"amount_baisa"`
+	Status      types.PaymentStatus `json:"status"`
+	Version     int32               `json:"version"`
+}
+
+func (q *Queries) GetPayment(ctx context.Context, id string) (GetPaymentRow, error) {
+	row := q.db.QueryRow(ctx, getPayment, id)
+	var i GetPaymentRow
+	err := row.Scan(
+		&i.ID,
+		&i.GroupID,
+		&i.FromUserID,
+		&i.ToUserID,
+		&i.AmountBaisa,
+		&i.Status,
+		&i.Version,
+	)
+	return i, err
+}
+
 const listPayments = `-- name: ListPayments :many
 SELECT id, from_user_id, to_user_id, amount_baisa, status, created_at
 FROM payments
@@ -53,4 +97,40 @@ func (q *Queries) ListPayments(ctx context.Context, groupID string) ([]ListPayme
 		return nil, err
 	}
 	return items, nil
+}
+
+const transitionPayment = `-- name: TransitionPayment :one
+UPDATE payments
+SET status = $1, version = version + 1, updated_at = now()
+WHERE id = $2::uuid AND version = $3
+RETURNING id, from_user_id, to_user_id, amount_baisa, status, created_at
+`
+
+type TransitionPaymentParams struct {
+	Status  types.PaymentStatus `json:"status"`
+	ID      string              `json:"id"`
+	Version int32               `json:"version"`
+}
+
+type TransitionPaymentRow struct {
+	ID          string              `json:"id"`
+	FromUserID  string              `json:"from_user_id"`
+	ToUserID    string              `json:"to_user_id"`
+	AmountBaisa int64               `json:"amount_baisa"`
+	Status      types.PaymentStatus `json:"status"`
+	CreatedAt   time.Time           `json:"created_at"`
+}
+
+func (q *Queries) TransitionPayment(ctx context.Context, arg TransitionPaymentParams) (TransitionPaymentRow, error) {
+	row := q.db.QueryRow(ctx, transitionPayment, arg.Status, arg.ID, arg.Version)
+	var i TransitionPaymentRow
+	err := row.Scan(
+		&i.ID,
+		&i.FromUserID,
+		&i.ToUserID,
+		&i.AmountBaisa,
+		&i.Status,
+		&i.CreatedAt,
+	)
+	return i, err
 }

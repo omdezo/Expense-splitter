@@ -42,6 +42,10 @@ FOR SHARE;
 -- name: MarkGroupClosed :exec
 UPDATE groups SET status = 'closed', updated_at = now() WHERE id = @id::uuid;
 
+-- name: MarkGroupSettled :exec
+UPDATE groups SET status = 'settled', updated_at = now()
+WHERE id = @id::uuid AND status = 'closed';
+
 -- name: GetGroupPublicStatus :one
 SELECT g.name,
        g.status,

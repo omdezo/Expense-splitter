@@ -65,6 +65,30 @@ sql:
             go_type:
               import: "expense-splitter/types"
               type: "PaymentStatus"
+          - db_type: "proof_type"
+            go_type:
+              import: "expense-splitter/types"
+              type: "ProofType"
+          - db_type: "pg_catalog.bpchar"
+            nullable: true
+            go_type:
+              type: "string"
+              pointer: true
+          - db_type: "bpchar"
+            nullable: true
+            go_type:
+              type: "string"
+              pointer: true
+          - db_type: "pg_catalog.int8"
+            nullable: true
+            go_type:
+              type: "int64"
+              pointer: true
+          - db_type: "int8"
+            nullable: true
+            go_type:
+              type: "int64"
+              pointer: true
           - db_type: "expense_category"
             go_type:
               import: "expense-splitter/types"

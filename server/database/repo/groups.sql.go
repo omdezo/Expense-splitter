@@ -253,6 +253,16 @@ func (q *Queries) MarkGroupClosed(ctx context.Context, id string) error {
 	return err
 }
 
+const markGroupSettled = `-- name: MarkGroupSettled :exec
+UPDATE groups SET status = 'settled', updated_at = now()
+WHERE id = $1::uuid AND status = 'closed'
+`
+
+func (q *Queries) MarkGroupSettled(ctx context.Context, id string) error {
+	_, err := q.db.Exec(ctx, markGroupSettled, id)
+	return err
+}
+
 const updateOpenGroup = `-- name: UpdateOpenGroup :one
 UPDATE groups
 SET name = $1, start_date = $2, end_date = $3,

@@ -73,6 +73,19 @@ func (c *Client) CreateUser(ctx context.Context, email, password, name string) (
 	}
 
 	first, last := splitName(name)
+	// Keycloak's default user profile requires BOTH names; a missing one fails
+	// later logins with "Account is not fully set up". Fall back rather than
+	// send empties.
+	if first == "" {
+		if i := strings.Index(email, "@"); i > 0 {
+			first = email[:i]
+		} else {
+			first = email
+		}
+	}
+	if last == "" {
+		last = first
+	}
 	body, err := json.Marshal(map[string]any{
 		"username":      email,
 		"email":         email,

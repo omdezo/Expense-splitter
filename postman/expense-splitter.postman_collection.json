@@ -23,7 +23,8 @@
     { "key": "memberUserId", "value": "" },
     { "key": "expenseId", "value": "" },
     { "key": "inviteToken", "value": "" },
-    { "key": "statusToken", "value": "" }
+    { "key": "statusToken", "value": "" },
+    { "key": "paymentId", "value": "" }
   ],
   "item": [
     {
@@ -326,6 +327,23 @@
         },
         {
           "name": "Get settlement plan",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const j = pm.response.json();",
+                  "if (j && j.payments && j.payments.length) {",
+                  "  pm.collectionVariables.set('paymentId', j.payments[0].id);",
+                  "  console.log('paymentId stored (first payment): ' + j.payments[0].id);",
+                  "  console.log(j.settled_count + ' of ' + j.total_count + ' settled');",
+                  "}",
+                  "pm.test('status is 200', () => pm.response.to.have.status(200));"
+                ]
+              }
+            }
+          ],
           "request": {
             "method": "GET",
             "header": [],
@@ -337,7 +355,7 @@
                 { "key": "groupId", "value": "{{groupId}}", "description": "Group UUID" }
               ]
             },
-            "description": "Members fetch the computed who-pays-whom plan for a CLOSED group: {from, to, amount_baisa, status} per payment (all start pending). 409 if the group is still open."
+            "description": "Members fetch the computed who-pays-whom plan for a CLOSED group: {from, to, amount_baisa, status} per payment plus the aggregate (settled_count / total_count, group_status). 409 if the group is still open. Stores {{paymentId}} (first payment)."
           }
         },
         {
@@ -576,6 +594,96 @@
               ]
             },
             "description": "Edit your own expense while the group is open. An amount change is written to the audit log (before/after)."
+          }
+        }
+      ]
+    },
+    {
+      "name": "Payments (two-key confirmation)",
+      "item": [
+        {
+          "name": "Submit proof (debtor)",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"note\": \"paid 5000 baisa cash on day 3\"\n}",
+              "options": { "raw": { "language": "json" } }
+            },
+            "url": {
+              "raw": "{{baseUrl}}/payments/:paymentId/proof",
+              "host": ["{{baseUrl}}"],
+              "path": ["payments", ":paymentId", "proof"],
+              "variable": [
+                { "key": "paymentId", "value": "{{paymentId}}", "description": "Payment UUID (from Get settlement plan)" }
+              ]
+            },
+            "description": "DEBTOR only. pending|disputed -> proof_submitted. Text note for now (image upload comes with the storage epic). Log in as the payment's from-user."
+          }
+        },
+        {
+          "name": "Confirm receipt (creditor)",
+          "request": {
+            "method": "POST",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/payments/:paymentId/confirm",
+              "host": ["{{baseUrl}}"],
+              "path": ["payments", ":paymentId", "confirm"],
+              "variable": [
+                { "key": "paymentId", "value": "{{paymentId}}", "description": "Payment UUID" }
+              ]
+            },
+            "description": "CREDITOR only. proof_submitted -> creditor_confirmed. Log in as the payment's to-user."
+          }
+        },
+        {
+          "name": "Dispute (creditor)",
+          "request": {
+            "method": "POST",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/payments/:paymentId/dispute",
+              "host": ["{{baseUrl}}"],
+              "path": ["payments", ":paymentId", "dispute"],
+              "variable": [
+                { "key": "paymentId", "value": "{{paymentId}}", "description": "Payment UUID" }
+              ]
+            },
+            "description": "CREDITOR only: 'I did not receive this'. proof_submitted -> disputed (debtor can re-submit proof)."
+          }
+        },
+        {
+          "name": "Finalize (admin)",
+          "request": {
+            "method": "POST",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/payments/:paymentId/finalize",
+              "host": ["{{baseUrl}}"],
+              "path": ["payments", ":paymentId", "finalize"],
+              "variable": [
+                { "key": "paymentId", "value": "{{paymentId}}", "description": "Payment UUID" }
+              ]
+            },
+            "description": "GROUP-ADMIN (own group, only from creditor_confirmed) or GLOBAL ADMIN (override: any non-settled step) -> settled. A debtor can NEVER finalize their own payment, even as admin. When the last payment settles, the group flips to fully settled (status 'settled', read-only)."
+          }
+        },
+        {
+          "name": "Reject (admin)",
+          "request": {
+            "method": "POST",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/payments/:paymentId/reject",
+              "host": ["{{baseUrl}}"],
+              "path": ["payments", ":paymentId", "reject"],
+              "variable": [
+                { "key": "paymentId", "value": "{{paymentId}}", "description": "Payment UUID" }
+              ]
+            },
+            "description": "GROUP-ADMIN or GLOBAL ADMIN -> disputed (returns the payment to the debtor to re-submit proof)."
           }
         }
       ]
