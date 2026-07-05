@@ -4,7 +4,7 @@ VALUES (@name, @start_date, @end_date, @expected_member_count, @created_by::uuid
 RETURNING id, name, start_date, end_date, status, invite_token, expected_member_count, created_by, created_at;
 
 -- name: GetGroupByID :one
-SELECT id, name, start_date, end_date, status, invite_token, expected_member_count, created_by, created_at
+SELECT id, name, start_date, end_date, status, invite_token, status_token, expected_member_count, created_by, created_at
 FROM groups
 WHERE id = @id::uuid;
 
@@ -41,3 +41,11 @@ FOR SHARE;
 
 -- name: MarkGroupClosed :exec
 UPDATE groups SET status = 'closed', updated_at = now() WHERE id = @id::uuid;
+
+-- name: GetGroupPublicStatus :one
+SELECT g.name,
+       g.status,
+       COALESCE((SELECT SUM(e.amount_baisa) FROM expenses e WHERE e.group_id = g.id AND e.deleted_at IS NULL), 0)::bigint AS total_spent,
+       COALESCE((SELECT COUNT(*) FROM memberships m WHERE m.group_id = g.id AND m.status = 'approved'), 0)::bigint AS member_count
+FROM groups g
+WHERE g.status_token = @status_token::uuid;

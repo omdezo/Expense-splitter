@@ -123,15 +123,17 @@ func (q *Queries) GetMembership(ctx context.Context, arg GetMembershipParams) (G
 }
 
 const listApprovedMembers = `-- name: ListApprovedMembers :many
-SELECT id, user_id
-FROM memberships
-WHERE group_id = $1::uuid AND status = 'approved'
-ORDER BY user_id
+SELECT m.id, m.user_id, u.email
+FROM memberships m
+JOIN users u ON u.id = m.user_id
+WHERE m.group_id = $1::uuid AND m.status = 'approved'
+ORDER BY m.user_id
 `
 
 type ListApprovedMembersRow struct {
 	ID     string `json:"id"`
 	UserID string `json:"user_id"`
+	Email  string `json:"email"`
 }
 
 func (q *Queries) ListApprovedMembers(ctx context.Context, groupID string) ([]ListApprovedMembersRow, error) {
@@ -143,7 +145,7 @@ func (q *Queries) ListApprovedMembers(ctx context.Context, groupID string) ([]Li
 	var items []ListApprovedMembersRow
 	for rows.Next() {
 		var i ListApprovedMembersRow
-		if err := rows.Scan(&i.ID, &i.UserID); err != nil {
+		if err := rows.Scan(&i.ID, &i.UserID, &i.Email); err != nil {
 			return nil, err
 		}
 		items = append(items, i)

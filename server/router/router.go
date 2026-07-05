@@ -18,6 +18,9 @@ func New(h *handler.Handler, auth *appmw.Auth) *echo.Echo {
 	e.POST("/auth/register", h.SignUp)
 	e.POST("/auth/login", h.Login)
 
+	// Public group status by shareable token — the ONLY unauthenticated group view.
+	e.GET("/public/groups/:token", h.PublicGroupStatus)
+
 	e.GET("/me", h.Me, auth.Require())
 	e.POST("/register", h.Register, auth.Require())
 	e.POST("/verification", h.SubmitVerification, auth.Require())
@@ -27,6 +30,8 @@ func New(h *handler.Handler, auth *appmw.Auth) *echo.Echo {
 	e.GET("/groups/:id", h.GetGroup, auth.Require())
 	e.PATCH("/groups/:id", h.UpdateGroup, auth.Require())
 	e.POST("/groups/:id/close", h.CloseGroup, auth.Require())
+	e.GET("/groups/:id/settlement", h.GetSettlementPlan, auth.Require())
+	e.GET("/groups/:id/summary", h.GetGroupSummary, auth.Require())
 	e.POST("/groups/:id/expenses", h.RecordExpense, auth.Require())
 	e.GET("/groups/:id/expenses", h.ListExpenses, auth.Require())
 	e.PATCH("/groups/:id/expenses/:expenseId", h.UpdateExpense, auth.Require())

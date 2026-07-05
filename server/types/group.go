@@ -22,6 +22,7 @@ type Group struct {
 	EndDate             time.Time   `json:"end_date"`
 	Status              GroupStatus `json:"status"`
 	InviteToken         string      `json:"invite_token"`
+	StatusToken         string      `json:"status_token,omitempty"`
 	ExpectedMemberCount *int        `json:"expected_member_count,omitempty"`
 	CreatedBy           string      `json:"created_by"`
 	CreatedAt           time.Time   `json:"created_at"`

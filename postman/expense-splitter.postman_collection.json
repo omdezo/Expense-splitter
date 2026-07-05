@@ -22,7 +22,8 @@
     { "key": "userId", "value": "" },
     { "key": "memberUserId", "value": "" },
     { "key": "expenseId", "value": "" },
-    { "key": "inviteToken", "value": "" }
+    { "key": "inviteToken", "value": "" },
+    { "key": "statusToken", "value": "" }
   ],
   "item": [
     {
@@ -259,6 +260,19 @@
         },
         {
           "name": "Get group (details + members)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const j = pm.response.json();",
+                  "if (j && j.status_token) { pm.collectionVariables.set('statusToken', j.status_token); console.log('statusToken stored'); }",
+                  "pm.test('status is 200', () => pm.response.to.have.status(200));"
+                ]
+              }
+            }
+          ],
           "request": {
             "method": "GET",
             "header": [],
@@ -308,6 +322,55 @@
               ]
             },
             "description": "Group-admin closes the group -> freezes expenses and computes the settlement plan (payments)."
+          }
+        },
+        {
+          "name": "Get settlement plan",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/groups/:groupId/settlement",
+              "host": ["{{baseUrl}}"],
+              "path": ["groups", ":groupId", "settlement"],
+              "variable": [
+                { "key": "groupId", "value": "{{groupId}}", "description": "Group UUID" }
+              ]
+            },
+            "description": "Members fetch the computed who-pays-whom plan for a CLOSED group: {from, to, amount_baisa, status} per payment (all start pending). 409 if the group is still open."
+          }
+        },
+        {
+          "name": "Get group summary",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/groups/:groupId/summary",
+              "host": ["{{baseUrl}}"],
+              "path": ["groups", ":groupId", "summary"],
+              "variable": [
+                { "key": "groupId", "value": "{{groupId}}", "description": "Group UUID" }
+              ]
+            },
+            "description": "Financial overview: total spent, spend per category, and per member paid / fair share / net (paid - fair share). Works for open and closed groups."
+          }
+        },
+        {
+          "name": "Public group status (no auth)",
+          "request": {
+            "auth": { "type": "noauth" },
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/public/groups/:statusToken",
+              "host": ["{{baseUrl}}"],
+              "path": ["public", "groups", ":statusToken"],
+              "variable": [
+                { "key": "statusToken", "value": "{{statusToken}}", "description": "Shareable status token (from Get group details)" }
+              ]
+            },
+            "description": "The ONLY unauthenticated group view. Returns name, open/closed/settled, total spent, member count — no per-person detail, no ids. Run 'Get group (details + members)' first to capture {{statusToken}}."
           }
         }
       ]

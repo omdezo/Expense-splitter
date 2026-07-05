@@ -466,16 +466,16 @@ type Notification struct {
 }
 
 type Payment struct {
-	ID              string        `json:"id"`
-	SettlementRunID string        `json:"settlement_run_id"`
-	GroupID         string        `json:"group_id"`
-	FromUserID      string        `json:"from_user_id"`
-	ToUserID        string        `json:"to_user_id"`
-	AmountBaisa     int64         `json:"amount_baisa"`
-	Status          PaymentStatus `json:"status"`
-	Version         int32         `json:"version"`
-	CreatedAt       time.Time     `json:"created_at"`
-	UpdatedAt       time.Time     `json:"updated_at"`
+	ID              string              `json:"id"`
+	SettlementRunID string              `json:"settlement_run_id"`
+	GroupID         string              `json:"group_id"`
+	FromUserID      string              `json:"from_user_id"`
+	ToUserID        string              `json:"to_user_id"`
+	AmountBaisa     int64               `json:"amount_baisa"`
+	Status          types.PaymentStatus `json:"status"`
+	Version         int32               `json:"version"`
+	CreatedAt       time.Time           `json:"created_at"`
+	UpdatedAt       time.Time           `json:"updated_at"`
 }
 
 type Proof struct {

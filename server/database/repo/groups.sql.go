@@ -62,7 +62,7 @@ func (q *Queries) CreateGroup(ctx context.Context, arg CreateGroupParams) (Creat
 }
 
 const getGroupByID = `-- name: GetGroupByID :one
-SELECT id, name, start_date, end_date, status, invite_token, expected_member_count, created_by, created_at
+SELECT id, name, start_date, end_date, status, invite_token, status_token, expected_member_count, created_by, created_at
 FROM groups
 WHERE id = $1::uuid
 `
@@ -74,6 +74,7 @@ type GetGroupByIDRow struct {
 	EndDate             time.Time         `json:"end_date"`
 	Status              types.GroupStatus `json:"status"`
 	InviteToken         string            `json:"invite_token"`
+	StatusToken         string            `json:"status_token"`
 	ExpectedMemberCount *int              `json:"expected_member_count"`
 	CreatedBy           string            `json:"created_by"`
 	CreatedAt           time.Time         `json:"created_at"`
@@ -89,6 +90,7 @@ func (q *Queries) GetGroupByID(ctx context.Context, id string) (GetGroupByIDRow,
 		&i.EndDate,
 		&i.Status,
 		&i.InviteToken,
+		&i.StatusToken,
 		&i.ExpectedMemberCount,
 		&i.CreatedBy,
 		&i.CreatedAt,
@@ -109,6 +111,34 @@ func (q *Queries) GetGroupByInviteToken(ctx context.Context, inviteToken string)
 	row := q.db.QueryRow(ctx, getGroupByInviteToken, inviteToken)
 	var i GetGroupByInviteTokenRow
 	err := row.Scan(&i.ID, &i.Status)
+	return i, err
+}
+
+const getGroupPublicStatus = `-- name: GetGroupPublicStatus :one
+SELECT g.name,
+       g.status,
+       COALESCE((SELECT SUM(e.amount_baisa) FROM expenses e WHERE e.group_id = g.id AND e.deleted_at IS NULL), 0)::bigint AS total_spent,
+       COALESCE((SELECT COUNT(*) FROM memberships m WHERE m.group_id = g.id AND m.status = 'approved'), 0)::bigint AS member_count
+FROM groups g
+WHERE g.status_token = $1::uuid
+`
+
+type GetGroupPublicStatusRow struct {
+	Name        string            `json:"name"`
+	Status      types.GroupStatus `json:"status"`
+	TotalSpent  int64             `json:"total_spent"`
+	MemberCount int64             `json:"member_count"`
+}
+
+func (q *Queries) GetGroupPublicStatus(ctx context.Context, statusToken string) (GetGroupPublicStatusRow, error) {
+	row := q.db.QueryRow(ctx, getGroupPublicStatus, statusToken)
+	var i GetGroupPublicStatusRow
+	err := row.Scan(
+		&i.Name,
+		&i.Status,
+		&i.TotalSpent,
+		&i.MemberCount,
+	)
 	return i, err
 }
 

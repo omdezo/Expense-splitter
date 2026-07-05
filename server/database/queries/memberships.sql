@@ -53,7 +53,8 @@ SELECT EXISTS(
 DELETE FROM memberships WHERE id = @id::uuid;
 
 -- name: ListApprovedMembers :many
-SELECT id, user_id
-FROM memberships
-WHERE group_id = @group_id::uuid AND status = 'approved'
-ORDER BY user_id;
+SELECT m.id, m.user_id, u.email
+FROM memberships m
+JOIN users u ON u.id = m.user_id
+WHERE m.group_id = @group_id::uuid AND m.status = 'approved'
+ORDER BY m.user_id;

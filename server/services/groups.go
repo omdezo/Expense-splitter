@@ -198,6 +198,7 @@ func (s *Services) GetGroup(ctx context.Context, id types.Identity, groupID stri
 			EndDate:             g.EndDate,
 			Status:              g.Status,
 			InviteToken:         g.InviteToken,
+			StatusToken:         g.StatusToken,
 			ExpectedMemberCount: g.ExpectedMemberCount,
 			CreatedBy:           g.CreatedBy,
 			CreatedAt:           g.CreatedAt,

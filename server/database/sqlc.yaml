@@ -61,6 +61,10 @@ sql:
             go_type:
               import: "expense-splitter/types"
               type: "MembershipStatus"
+          - db_type: "payment_status"
+            go_type:
+              import: "expense-splitter/types"
+              type: "PaymentStatus"
           - db_type: "expense_category"
             go_type:
               import: "expense-splitter/types"
