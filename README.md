@@ -43,6 +43,76 @@ curl http://localhost:8080/health
 # {"status":"ok","database":"up"}
 ```
 
+## Settlement algorithm
+
+All money is integer **baisa** (`1.000 OMR = 1000`); there are no floats anywhere
+in the money path. Settlement runs when the group-admin closes the group and has
+two stages, both pure functions in `server/services/settlement.go`.
+
+### 1. Fair share with deterministic remainder — `fairShares`
+
+`total / n` rarely divides evenly, and the leftover baisa have to go *somewhere*
+— deterministically, so the same input always produces the same plan.
+
+- base share = `total / n` (integer division)
+- remainder `r = total % n` (always `0 ≤ r < n`)
+- the **first `r` members in stable order (sorted by `user_id`)** each absorb
+  exactly **one extra baisa**
+
+Example: `1000` baisa across 3 members → `334, 333, 333`. The shares always sum
+to exactly `total` — no baisa is created or lost. Tested in `TestFairShares`
+(same input twice → identical output).
+
+### 2. Payment plan — greedy **largest-debtor ↔ largest-creditor matching**
+
+After fair shares, each member has a net balance (`paid − fair_share`);
+negative = owes, positive = is owed. The plan generator:
+
+1. Partition members into **debtors** (net < 0) and **creditors** (net > 0);
+   zeros drop out.
+2. Sort debtors by most-negative net, creditors by most-positive net
+   (ties broken by `user_id` → determinism).
+3. Two pointers: transfer `min(|debtor.net|, creditor.net)` from the current
+   largest debtor to the current largest creditor; whoever reaches zero
+   advances their pointer. Repeat until both lists are exhausted.
+
+**Transfer-count bound:** every transfer fully zeroes at least one participant,
+so the plan has at most `D + C − 1 ≤ n − 1` transfers — versus the naive
+`n × (n−1)` everyone-pays-everyone matrix.
+
+**Complexity:** `O(n log n)` (the two sorts) + `O(n)` for the matching loop →
+**`O(n log n)` time, `O(n)` space**.
+
+**Why a heuristic:** the true *minimum* number of transfers is **NP-hard**
+(finding subsets of debtors and creditors that cancel exactly reduces to
+subset-sum). The greedy bound of `≤ n − 1` transfers with exact reconciliation
+in integer baisa is the standard, defensible trade-off.
+
+Reference case from the spec (`TestComputePlanReferenceCase`): shares 60 each,
+Ahmed +40, Omar +20, Mohammed −60 → **Mohammed→Ahmed 40, Mohammed→Omar 20**
+(2 transfers, reconciles to zero). `TestComputePlanReconciles` additionally
+proves `sum(out) == sum(in)` and all nets reach zero on every case, including
+the **multi-debtor / multi-creditor** shape (`+30, +10, −25, −15`) that the
+single-debtor example hides.
+
+```bash
+make test-pkg PKG=./services RUN='TestFairShares|TestComputePlan'   # see it run
+```
+
+## Concurrency & locking strategy
+
+The dangerous window is settlement: it must be computed **exactly once over a
+consistent snapshot** while expenses may be landing concurrently.
+
+| Operation | Lock taken | Race it kills |
+|---|---|---|
+| **Close group** (`services/close.go`) | one tx; `SELECT … FOR UPDATE` on the group row, then the status guard re-checked *under the lock* | two concurrent closes — the second blocks, then sees `status=closed` → 409 |
+| **Record / update expense** (`services/expenses.go`) | one tx; `SELECT … FOR SHARE` on the group row | an expense landing *during* a close. `FOR SHARE` is compatible with other `FOR SHARE` (members record concurrently, no bottleneck) but conflicts with close's `FOR UPDATE` — so an in-flight close blocks new expenses until it commits, after which they see `closed` → 409. Nothing slips past the snapshot. |
+| **Settle-once backstop** | `settlement_runs.group_id UNIQUE` | even if application logic ever regressed, a second settlement row is a constraint violation — the DB is the last line of defense |
+| **Admin handoff** (`services/memberships.go`) | demote-then-promote inside one tx, under the `one_group_admin_per_group` partial unique index | two admins existing for any instant — the index makes it impossible, the ordering makes the tx valid |
+| **Group update** | `UPDATE … WHERE status='open'` with `RETURNING`; zero rows → 409 | lost-update against a concurrent close |
+| **Finalize payment** *(lands with the confirmation state machine)* | optimistic locking via `payments.version`: `UPDATE … SET status=…, version=version+1 WHERE id=$1 AND version=$2` — zero rows affected means someone else finalized first → 409 | two admins finalizing the same payment at once; each payment is finalized exactly once |
+
 ## Authentication (Keycloak)
 
 The realm `expense-splitter` is imported from `keycloak/realm-export.json` with:
