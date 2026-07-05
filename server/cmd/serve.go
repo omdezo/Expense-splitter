@@ -4,6 +4,7 @@ import (
 	"github.com/spf13/cobra"
 
 	"expense-splitter/handler"
+	"expense-splitter/keycloak"
 	"expense-splitter/middleware"
 	"expense-splitter/router"
 	"expense-splitter/services"
@@ -19,7 +20,8 @@ var serveCmd = &cobra.Command{
 		}
 		defer app.Close()
 
-		svc := services.New(app.DB.Pool, app.Logger)
+		kc := keycloak.New(app.Cfg.Keycloak)
+		svc := services.New(app.DB.Pool, app.Logger, kc)
 		h := handler.New(svc, app.Logger)
 		auth := middleware.NewAuth(app.Cfg.Keycloak)
 

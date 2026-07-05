@@ -1,0 +1,558 @@
+{
+  "info": {
+    "name": "Expense Splitter API",
+    "description": "Backend API for the Expense Splitter (Go + Echo + Postgres + Keycloak).\n\n## Quick start\n1. Bring the stack up: `docker compose up --build -d` (server on http://localhost:8080).\n2. Run **Auth → Login** — it stores the Keycloak access token into the `access_token` collection variable; every authed request inherits it via collection-level Bearer auth.\n3. Run **Groups → Create group** — stores `groupId` (and `inviteToken`).\n4. Run **Account → Get me** — stores your `userId`.\n5. Record/list expenses, manage members, etc.\n\n## Parameters\n- **Path variables** (`:groupId`, `:userId`, `:expenseId`) appear in each request's **Params** tab and are pre-filled from the collection variables below (set automatically by the test scripts). Override them per-request there.\n- **Query params** (list expenses: `category`, `paid_by`, `q`) also live in the Params tab — enable the checkbox to apply a filter.\n- **Body** params are in the Body tab (raw JSON).\n\n## Variables (collection → Variables tab)\n- `baseUrl` (default http://localhost:8080)\n- `email` / `password` — login creds (default: seed global admin admin@expense-splitter.local / admin)\n- `newUserEmail` / `newUserPassword` / `newUserName` — used by Auth → Register\n- `groupId`, `userId`, `expenseId`, `inviteToken` — auto-filled by test scripts, or set manually.\n\nNote: login is proxied through our API (`/auth/login`), so you only ever hit `{{baseUrl}}`, never Keycloak directly.",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "auth": {
+    "type": "bearer",
+    "bearer": [
+      { "key": "token", "value": "{{access_token}}", "type": "string" }
+    ]
+  },
+  "variable": [
+    { "key": "baseUrl", "value": "http://localhost:8080" },
+    { "key": "email", "value": "admin@expense-splitter.local" },
+    { "key": "password", "value": "admin" },
+    { "key": "newUserEmail", "value": "testuser@example.com" },
+    { "key": "newUserPassword", "value": "password123" },
+    { "key": "newUserName", "value": "Test User" },
+    { "key": "access_token", "value": "" },
+    { "key": "groupId", "value": "" },
+    { "key": "userId", "value": "" },
+    { "key": "memberUserId", "value": "" },
+    { "key": "expenseId", "value": "" },
+    { "key": "inviteToken", "value": "" }
+  ],
+  "item": [
+    {
+      "name": "Health",
+      "item": [
+        {
+          "name": "Health check",
+          "request": {
+            "auth": { "type": "noauth" },
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/health",
+              "host": ["{{baseUrl}}"],
+              "path": ["health"]
+            },
+            "description": "Public liveness/DB-ping check."
+          }
+        }
+      ]
+    },
+    {
+      "name": "Auth (public)",
+      "item": [
+        {
+          "name": "Register (sign up)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const j = pm.response.json();",
+                  "if (j && j.id) { pm.collectionVariables.set('memberUserId', j.id); console.log('memberUserId stored: ' + j.id); }",
+                  "pm.test('status is 201 or 409', () => pm.expect([201,409]).to.include(pm.response.code));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "auth": { "type": "noauth" },
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"{{newUserEmail}}\",\n  \"password\": \"{{newUserPassword}}\",\n  \"name\": \"{{newUserName}}\"\n}",
+              "options": { "raw": { "language": "json" } }
+            },
+            "url": {
+              "raw": "{{baseUrl}}/auth/register",
+              "host": ["{{baseUrl}}"],
+              "path": ["auth", "register"]
+            },
+            "description": "Creates the user in Keycloak (admin API) and provisions the local users row. Body: email, password (>= 8 chars), name."
+          }
+        },
+        {
+          "name": "Login",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const j = pm.response.json();",
+                  "if (j && j.access_token) {",
+                  "  pm.collectionVariables.set('access_token', j.access_token);",
+                  "  console.log('access_token stored');",
+                  "}",
+                  "pm.test('status is 200', () => pm.response.to.have.status(200));",
+                  "pm.test('has access_token', () => pm.expect(j.access_token).to.be.a('string'));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "auth": { "type": "noauth" },
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"{{email}}\",\n  \"password\": \"{{password}}\"\n}",
+              "options": { "raw": { "language": "json" } }
+            },
+            "url": {
+              "raw": "{{baseUrl}}/auth/login",
+              "host": ["{{baseUrl}}"],
+              "path": ["auth", "login"]
+            },
+            "description": "Password-grant login proxied to Keycloak. On success stores {{access_token}} for all other requests."
+          }
+        }
+      ]
+    },
+    {
+      "name": "Account",
+      "item": [
+        {
+          "name": "Get me",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const j = pm.response.json();",
+                  "if (j && j.local_user && j.local_user.id) {",
+                  "  pm.collectionVariables.set('userId', j.local_user.id);",
+                  "  console.log('userId stored: ' + j.local_user.id);",
+                  "}",
+                  "pm.test('status is 200', () => pm.response.to.have.status(200));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/me",
+              "host": ["{{baseUrl}}"],
+              "path": ["me"]
+            },
+            "description": "Returns token claims + the linked local user (if provisioned). Stores {{userId}}."
+          }
+        },
+        {
+          "name": "Register (link existing token)",
+          "request": {
+            "method": "POST",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/register",
+              "host": ["{{baseUrl}}"],
+              "path": ["register"]
+            },
+            "description": "Provision-or-link the authenticated Keycloak identity to a local users row (idempotent). Used e.g. by the seeded admin on first login."
+          }
+        },
+        {
+          "name": "Submit verification",
+          "request": {
+            "method": "POST",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/verification",
+              "host": ["{{baseUrl}}"],
+              "path": ["verification"]
+            },
+            "description": "Moves the caller from registered -> pending_verification."
+          }
+        }
+      ]
+    },
+    {
+      "name": "Groups",
+      "item": [
+        {
+          "name": "List my groups",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/groups",
+              "host": ["{{baseUrl}}"],
+              "path": ["groups"]
+            },
+            "description": "Groups the caller belongs to (approved memberships) with their role/status."
+          }
+        },
+        {
+          "name": "Create group (as verified user)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const j = pm.response.json();",
+                  "if (j && j.id) { pm.collectionVariables.set('groupId', j.id); console.log('groupId stored: ' + j.id); }",
+                  "if (j && j.invite_token) { pm.collectionVariables.set('inviteToken', j.invite_token); }",
+                  "pm.test('status is 201', () => pm.response.to.have.status(201));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"Road Trip 2026\",\n  \"start_date\": \"2026-07-01T00:00:00Z\",\n  \"end_date\": \"2026-07-10T00:00:00Z\",\n  \"expected_member_count\": 4\n}",
+              "options": { "raw": { "language": "json" } }
+            },
+            "url": {
+              "raw": "{{baseUrl}}/groups",
+              "host": ["{{baseUrl}}"],
+              "path": ["groups"]
+            },
+            "description": "Use this when logged in as a NORMAL verified user — the creator becomes group-admin. Do NOT send admin_user_id here (a non-admin sending it gets 403). Stores {{groupId}} and {{inviteToken}}. Dates are RFC3339 timestamps.\n\nNote: the seed admin is the GLOBAL admin and cannot use this form — use \"Create group (as global admin — assign member)\" instead."
+          }
+        },
+        {
+          "name": "Create group (as global admin — assign member)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const j = pm.response.json();",
+                  "if (j && j.id) { pm.collectionVariables.set('groupId', j.id); console.log('groupId stored: ' + j.id); }",
+                  "if (j && j.invite_token) { pm.collectionVariables.set('inviteToken', j.invite_token); }",
+                  "pm.test('status is 201', () => pm.response.to.have.status(201));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"Admin-Assigned Trip\",\n  \"start_date\": \"2026-07-01T00:00:00Z\",\n  \"end_date\": \"2026-07-10T00:00:00Z\",\n  \"admin_user_id\": \"{{memberUserId}}\"\n}",
+              "options": { "raw": { "language": "json" } }
+            },
+            "url": {
+              "raw": "{{baseUrl}}/groups",
+              "host": ["{{baseUrl}}"],
+              "path": ["groups"]
+            },
+            "description": "Use this when logged in as the GLOBAL admin. You must assign an existing VERIFIED member as group-admin via admin_user_id (the global admin is not a trip member). {{userId}} is captured by Auth → Register / Get me — verify that user first (Admin → Approve user). Stores {{groupId}} and {{inviteToken}}."
+          }
+        },
+        {
+          "name": "Get group (details + members)",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/groups/:groupId",
+              "host": ["{{baseUrl}}"],
+              "path": ["groups", ":groupId"],
+              "variable": [
+                { "key": "groupId", "value": "{{groupId}}", "description": "Group UUID" }
+              ]
+            },
+            "description": "Group metadata + member list. Member-level access."
+          }
+        },
+        {
+          "name": "Update group",
+          "request": {
+            "method": "PATCH",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"Road Trip 2026 (renamed)\",\n  \"start_date\": \"2026-07-01T00:00:00Z\",\n  \"end_date\": \"2026-07-12T00:00:00Z\",\n  \"expected_member_count\": 5\n}",
+              "options": { "raw": { "language": "json" } }
+            },
+            "url": {
+              "raw": "{{baseUrl}}/groups/:groupId",
+              "host": ["{{baseUrl}}"],
+              "path": ["groups", ":groupId"],
+              "variable": [
+                { "key": "groupId", "value": "{{groupId}}", "description": "Group UUID" }
+              ]
+            },
+            "description": "Replace editable metadata. Group-admin only, open groups only."
+          }
+        },
+        {
+          "name": "Close group (compute settlement)",
+          "request": {
+            "method": "POST",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/groups/:groupId/close",
+              "host": ["{{baseUrl}}"],
+              "path": ["groups", ":groupId", "close"],
+              "variable": [
+                { "key": "groupId", "value": "{{groupId}}", "description": "Group UUID" }
+              ]
+            },
+            "description": "Group-admin closes the group -> freezes expenses and computes the settlement plan (payments)."
+          }
+        }
+      ]
+    },
+    {
+      "name": "Memberships",
+      "item": [
+        {
+          "name": "Join group (request)",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"invite_token\": \"{{inviteToken}}\"\n}",
+              "options": { "raw": { "language": "json" } }
+            },
+            "url": {
+              "raw": "{{baseUrl}}/groups/join",
+              "host": ["{{baseUrl}}"],
+              "path": ["groups", "join"]
+            },
+            "description": "Verified user requests to join using the group's shareable invite token."
+          }
+        },
+        {
+          "name": "List join requests",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const arr = pm.response.json();",
+                  "if (Array.isArray(arr) && arr.length && arr[0].user_id) {",
+                  "  pm.collectionVariables.set('memberUserId', arr[0].user_id);",
+                  "  console.log('memberUserId stored (first requester): ' + arr[0].user_id);",
+                  "}",
+                  "pm.test('status is 200', () => pm.response.to.have.status(200));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/groups/:groupId/requests",
+              "host": ["{{baseUrl}}"],
+              "path": ["groups", ":groupId", "requests"],
+              "variable": [
+                { "key": "groupId", "value": "{{groupId}}", "description": "Group UUID" }
+              ]
+            },
+            "description": "Group-admin view of pending join requests."
+          }
+        },
+        {
+          "name": "Approve member",
+          "request": {
+            "method": "POST",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/groups/:groupId/members/:userId/approve",
+              "host": ["{{baseUrl}}"],
+              "path": ["groups", ":groupId", "members", ":userId", "approve"],
+              "variable": [
+                { "key": "groupId", "value": "{{groupId}}", "description": "Group UUID" },
+                { "key": "userId", "value": "{{memberUserId}}", "description": "Target user UUID" }
+              ]
+            },
+            "description": "Group-admin approves a join request."
+          }
+        },
+        {
+          "name": "Reject member",
+          "request": {
+            "method": "POST",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/groups/:groupId/members/:userId/reject",
+              "host": ["{{baseUrl}}"],
+              "path": ["groups", ":groupId", "members", ":userId", "reject"],
+              "variable": [
+                { "key": "groupId", "value": "{{groupId}}", "description": "Group UUID" },
+                { "key": "userId", "value": "{{memberUserId}}", "description": "Target user UUID" }
+              ]
+            },
+            "description": "Group-admin rejects a join request."
+          }
+        },
+        {
+          "name": "Promote to admin (handoff)",
+          "request": {
+            "method": "POST",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/groups/:groupId/members/:userId/promote",
+              "host": ["{{baseUrl}}"],
+              "path": ["groups", ":groupId", "members", ":userId", "promote"],
+              "variable": [
+                { "key": "groupId", "value": "{{groupId}}", "description": "Group UUID" },
+                { "key": "userId", "value": "{{memberUserId}}", "description": "New admin's user UUID" }
+              ]
+            },
+            "description": "Transfer group-admin role to another approved member (exactly one admin at all times)."
+          }
+        },
+        {
+          "name": "Remove member",
+          "request": {
+            "method": "DELETE",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/groups/:groupId/members/:userId",
+              "host": ["{{baseUrl}}"],
+              "path": ["groups", ":groupId", "members", ":userId"],
+              "variable": [
+                { "key": "groupId", "value": "{{groupId}}", "description": "Group UUID" },
+                { "key": "userId", "value": "{{memberUserId}}", "description": "Target user UUID" }
+              ]
+            },
+            "description": "Remove a member (or leave). Blocked (409) if the member has any recorded expense."
+          }
+        }
+      ]
+    },
+    {
+      "name": "Expenses",
+      "item": [
+        {
+          "name": "Record expense",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const j = pm.response.json();",
+                  "if (j && j.id) { pm.collectionVariables.set('expenseId', j.id); console.log('expenseId stored: ' + j.id); }",
+                  "pm.test('status is 201', () => pm.response.to.have.status(201));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"amount_baisa\": 15000,\n  \"category\": \"food\",\n  \"description\": \"dinner at the hardware store cafe\",\n  \"occurred_on\": \"2026-07-03\"\n}",
+              "options": { "raw": { "language": "json" } }
+            },
+            "url": {
+              "raw": "{{baseUrl}}/groups/:groupId/expenses",
+              "host": ["{{baseUrl}}"],
+              "path": ["groups", ":groupId", "expenses"],
+              "variable": [
+                { "key": "groupId", "value": "{{groupId}}", "description": "Group UUID" }
+              ]
+            },
+            "description": "Record an expense you paid. paid_by is always the caller. category in: lodging, fuel, food, transport, other. occurred_on is YYYY-MM-DD within the trip range. Stores {{expenseId}}."
+          }
+        },
+        {
+          "name": "List expenses (with filters)",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/groups/:groupId/expenses?category=food&paid_by={{userId}}&q=dinner",
+              "host": ["{{baseUrl}}"],
+              "path": ["groups", ":groupId", "expenses"],
+              "query": [
+                { "key": "category", "value": "food", "description": "lodging|fuel|food|transport|other", "disabled": true },
+                { "key": "paid_by", "value": "{{userId}}", "description": "Filter by payer user UUID", "disabled": true },
+                { "key": "q", "value": "dinner", "description": "Search in description", "disabled": true }
+              ],
+              "variable": [
+                { "key": "groupId", "value": "{{groupId}}", "description": "Group UUID" }
+              ]
+            },
+            "description": "List expenses for a group. Descriptions >80 chars are truncated on a word boundary. Optional query filters (enable them in the Params tab): category, paid_by (user id), q (description search)."
+          }
+        },
+        {
+          "name": "Update expense",
+          "request": {
+            "method": "PATCH",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"amount_baisa\": 18000,\n  \"category\": \"food\",\n  \"description\": \"dinner at the hardware store cafe (updated)\",\n  \"occurred_on\": \"2026-07-03\"\n}",
+              "options": { "raw": { "language": "json" } }
+            },
+            "url": {
+              "raw": "{{baseUrl}}/groups/:groupId/expenses/:expenseId",
+              "host": ["{{baseUrl}}"],
+              "path": ["groups", ":groupId", "expenses", ":expenseId"],
+              "variable": [
+                { "key": "groupId", "value": "{{groupId}}", "description": "Group UUID" },
+                { "key": "expenseId", "value": "{{expenseId}}", "description": "Expense UUID" }
+              ]
+            },
+            "description": "Edit your own expense while the group is open. An amount change is written to the audit log (before/after)."
+          }
+        }
+      ]
+    },
+    {
+      "name": "Admin (global admin)",
+      "item": [
+        {
+          "name": "Approve user (verify)",
+          "request": {
+            "method": "POST",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/admin/users/:userId/approve",
+              "host": ["{{baseUrl}}"],
+              "path": ["admin", "users", ":userId", "approve"],
+              "variable": [
+                { "key": "userId", "value": "{{memberUserId}}", "description": "Target user UUID to verify" }
+              ]
+            },
+            "description": "Global admin marks a user verified. Requires the caller to be the global admin."
+          }
+        },
+        {
+          "name": "Reject user",
+          "request": {
+            "method": "POST",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/admin/users/:userId/reject",
+              "host": ["{{baseUrl}}"],
+              "path": ["admin", "users", ":userId", "reject"],
+              "variable": [
+                { "key": "userId", "value": "{{memberUserId}}", "description": "Target user UUID to reject" }
+              ]
+            },
+            "description": "Global admin rejects a user's verification. Requires the caller to be the global admin."
+          }
+        }
+      ]
+    }
+  ]
+}

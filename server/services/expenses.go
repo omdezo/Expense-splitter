@@ -3,23 +3,16 @@ package services
 import (
 	"context"
 	"errors"
-	"fmt"
 	"strings"
 	"unicode/utf8"
 
 	"github.com/jackc/pgx/v5"
 
+	"expense-splitter/database/repo"
 	"expense-splitter/types"
 )
 
 const descriptionMaxLen = 80
-
-// escapeLike neutralises LIKE/ILIKE wildcards in a user search term so it is
-// matched literally. Paired with `ESCAPE '\'`, a query of "50%" finds the text
-// "50%" rather than treating % as "match anything".
-func escapeLike(s string) string {
-	return strings.NewReplacer(`\`, `\\`, `%`, `\%`, `_`, `\_`).Replace(s)
-}
 
 // truncateDescription enforces req #11: a listed description is at most 80
 // characters; longer ones are cut on a word boundary and suffixed with "..."
@@ -47,6 +40,13 @@ func truncateDescription(s string) string {
 	return head + " " + ellipsis
 }
 
+// escapeLike neutralises LIKE/ILIKE wildcards in a user search term so it is
+// matched literally. Paired with `ESCAPE '\'`, a query of "50%" finds the text
+// "50%" rather than treating % as "match anything".
+func escapeLike(s string) string {
+	return strings.NewReplacer(`\`, `\\`, `%`, `\%`, `_`, `\_`).Replace(s)
+}
+
 func (s *Services) RecordExpense(ctx context.Context, id types.Identity, groupID string, req types.RecordExpenseRequest) (*types.Expense, types.APIError) {
 	caller, err := s.principalByKeycloakID(ctx, id.Subject)
 	switch {
@@ -63,12 +63,9 @@ func (s *Services) RecordExpense(ctx context.Context, id types.Identity, groupID
 		return nil, types.NewServerError()
 	}
 	defer tx.Rollback(ctx)
+	qtx := s.q.WithTx(tx)
 
-	var status types.GroupStatus
-	var inRange bool
-	err = tx.QueryRow(ctx,
-		`SELECT status, ($1::date BETWEEN start_date::date AND end_date::date) FROM groups WHERE id = $2::uuid FOR SHARE`,
-		req.OccurredOn, groupID).Scan(&status, &inRange)
+	g, err := qtx.LockGroupForExpense(ctx, repo.LockGroupForExpenseParams{OccurredOn: req.OccurredOn, ID: groupID})
 	switch {
 	case errors.Is(err, pgx.ErrNoRows):
 		return nil, types.NewNotFoundError("group not found")
@@ -76,18 +73,16 @@ func (s *Services) RecordExpense(ctx context.Context, id types.Identity, groupID
 		s.logger.Errorw("record expense: load group", "error", err)
 		return nil, types.NewServerError()
 	}
-	if status != types.GroupOpen {
+	if g.Status != types.GroupOpen {
 		return nil, types.NewConflictError("group is not open")
 	}
-	if !inRange {
+	if !g.InRange {
 		return nil, types.NewBadRequestError("occurred_on is outside the trip dates")
 	}
 
 	// The caller must be an approved member; their membership id is paid_by, so
 	// paid_by == caller by construction (no way to record for someone else).
-	var membershipID string
-	var mStatus types.MembershipStatus
-	err = tx.QueryRow(ctx, `SELECT id, status FROM memberships WHERE group_id = $1::uuid AND user_id = $2::uuid`, groupID, caller.UserID).Scan(&membershipID, &mStatus)
+	m, err := qtx.GetMembership(ctx, repo.GetMembershipParams{GroupID: groupID, UserID: caller.UserID})
 	switch {
 	case errors.Is(err, pgx.ErrNoRows):
 		return nil, types.NewForbiddenError("you are not a member of this group")
@@ -95,24 +90,19 @@ func (s *Services) RecordExpense(ctx context.Context, id types.Identity, groupID
 		s.logger.Errorw("record expense: load membership", "error", err)
 		return nil, types.NewServerError()
 	}
-	if mStatus != types.MembershipApproved {
+	if m.Status != types.MembershipApproved {
 		return nil, types.NewForbiddenError("your membership is not approved")
 	}
 
-	e := &types.Expense{
+	created, err := qtx.CreateExpense(ctx, repo.CreateExpenseParams{
 		GroupID:     groupID,
-		PaidBy:      caller.UserID,
+		PaidBy:      m.ID,
 		AmountBaisa: req.AmountBaisa,
 		Category:    req.Category,
 		Description: req.Description,
 		OccurredOn:  req.OccurredOn,
-	}
-	const ins = `
-INSERT INTO expenses (group_id, paid_by, amount_baisa, category, description, occurred_on)
-VALUES ($1::uuid, $2::uuid, $3, $4::expense_category, $5, $6::date)
-RETURNING id, created_at`
-	if err := tx.QueryRow(ctx, ins, groupID, membershipID, req.AmountBaisa, string(req.Category), req.Description, req.OccurredOn).
-		Scan(&e.ID, &e.CreatedAt); err != nil {
+	})
+	if err != nil {
 		s.logger.Errorw("record expense: insert", "error", err)
 		return nil, types.NewServerError()
 	}
@@ -122,7 +112,16 @@ RETURNING id, created_at`
 		return nil, types.NewServerError()
 	}
 
-	return e, nil
+	return &types.Expense{
+		ID:          created.ID,
+		GroupID:     groupID,
+		PaidBy:      caller.UserID,
+		AmountBaisa: req.AmountBaisa,
+		Category:    req.Category,
+		Description: req.Description,
+		OccurredOn:  req.OccurredOn,
+		CreatedAt:   created.CreatedAt,
+	}, nil
 }
 
 func (s *Services) ListExpenses(ctx context.Context, id types.Identity, groupID string, filter types.ExpenseFilter) ([]types.Expense, types.APIError) {
@@ -138,47 +137,36 @@ func (s *Services) ListExpenses(ctx context.Context, id types.Identity, groupID 
 		return nil, apiErr
 	}
 
-	q := `
-SELECT e.id, m.user_id, e.amount_baisa, e.category, e.description, e.occurred_on::text, e.created_at
-FROM expenses e
-JOIN memberships m ON m.id = e.paid_by
-WHERE e.group_id = $1::uuid AND e.deleted_at IS NULL`
-	args := []any{groupID}
+	params := repo.ListExpensesParams{GroupID: groupID}
 	if filter.Category != "" {
-		args = append(args, string(filter.Category))
-		q += fmt.Sprintf(" AND e.category = $%d::expense_category", len(args))
+		params.Category = &filter.Category
 	}
 	if filter.PaidBy != "" {
-		args = append(args, filter.PaidBy)
-		q += fmt.Sprintf(" AND m.user_id = $%d::uuid", len(args))
+		params.PaidBy = &filter.PaidBy
 	}
 	if filter.Search != "" {
-		args = append(args, escapeLike(filter.Search))
-		q += fmt.Sprintf(" AND e.description ILIKE ('%%' || $%d || '%%') ESCAPE '\\'", len(args))
+		escaped := escapeLike(filter.Search)
+		params.Search = &escaped
 	}
-	q += " ORDER BY e.occurred_on, e.created_at"
 
-	rows, err := s.db.Query(ctx, q, args...)
+	rows, err := s.q.ListExpenses(ctx, params)
 	if err != nil {
 		s.logger.Errorw("list expenses: query", "error", err)
 		return nil, types.NewServerError()
 	}
-	defer rows.Close()
 
-	out := []types.Expense{}
-	for rows.Next() {
-		var e types.Expense
-		e.GroupID = groupID
-		if err := rows.Scan(&e.ID, &e.PaidBy, &e.AmountBaisa, &e.Category, &e.Description, &e.OccurredOn, &e.CreatedAt); err != nil {
-			s.logger.Errorw("list expenses: scan", "error", err)
-			return nil, types.NewServerError()
-		}
-		e.Description = truncateDescription(e.Description)
-		out = append(out, e)
-	}
-	if err := rows.Err(); err != nil {
-		s.logger.Errorw("list expenses: rows", "error", err)
-		return nil, types.NewServerError()
+	out := make([]types.Expense, 0, len(rows))
+	for _, r := range rows {
+		out = append(out, types.Expense{
+			ID:          r.ID,
+			GroupID:     groupID,
+			PaidBy:      r.PaidBy,
+			AmountBaisa: r.AmountBaisa,
+			Category:    r.Category,
+			Description: truncateDescription(r.Description),
+			OccurredOn:  r.OccurredOn,
+			CreatedAt:   r.CreatedAt,
+		})
 	}
 	return out, nil
 }
@@ -203,12 +191,9 @@ func (s *Services) UpdateExpense(ctx context.Context, id types.Identity, groupID
 		return nil, types.NewServerError()
 	}
 	defer tx.Rollback(ctx)
+	qtx := s.q.WithTx(tx)
 
-	var status types.GroupStatus
-	var inRange bool
-	err = tx.QueryRow(ctx,
-		`SELECT status, ($1::date BETWEEN start_date::date AND end_date::date) FROM groups WHERE id = $2::uuid FOR SHARE`,
-		req.OccurredOn, groupID).Scan(&status, &inRange)
+	g, err := qtx.LockGroupForExpense(ctx, repo.LockGroupForExpenseParams{OccurredOn: req.OccurredOn, ID: groupID})
 	switch {
 	case errors.Is(err, pgx.ErrNoRows):
 		return nil, types.NewNotFoundError("group not found")
@@ -216,22 +201,14 @@ func (s *Services) UpdateExpense(ctx context.Context, id types.Identity, groupID
 		s.logger.Errorw("update expense: load group", "error", err)
 		return nil, types.NewServerError()
 	}
-	if status != types.GroupOpen {
+	if g.Status != types.GroupOpen {
 		return nil, types.NewConflictError("group is not open")
 	}
-	if !inRange {
+	if !g.InRange {
 		return nil, types.NewBadRequestError("occurred_on is outside the trip dates")
 	}
 
-	var oldAmount int64
-	var ownerUserID string
-	err = tx.QueryRow(ctx,
-		`SELECT e.amount_baisa, m.user_id
-		 FROM expenses e
-		 JOIN memberships m ON m.id = e.paid_by
-		 WHERE e.id = $1::uuid AND e.group_id = $2::uuid AND e.deleted_at IS NULL
-		 FOR UPDATE OF e`,
-		expenseID, groupID).Scan(&oldAmount, &ownerUserID)
+	old, err := qtx.LockExpenseForUpdate(ctx, repo.LockExpenseForUpdateParams{ID: expenseID, GroupID: groupID})
 	switch {
 	case errors.Is(err, pgx.ErrNoRows):
 		return nil, types.NewNotFoundError("expense not found")
@@ -239,36 +216,28 @@ func (s *Services) UpdateExpense(ctx context.Context, id types.Identity, groupID
 		s.logger.Errorw("update expense: load expense", "error", err)
 		return nil, types.NewServerError()
 	}
-	if ownerUserID != caller.UserID {
+	if old.UserID != caller.UserID {
 		return nil, types.NewForbiddenError("you can only edit your own expenses")
 	}
 
-	e := &types.Expense{
-		ID:          expenseID,
-		GroupID:     groupID,
-		PaidBy:      caller.UserID,
+	createdAt, err := qtx.UpdateExpense(ctx, repo.UpdateExpenseParams{
 		AmountBaisa: req.AmountBaisa,
 		Category:    req.Category,
 		Description: req.Description,
 		OccurredOn:  req.OccurredOn,
-	}
-	const upd = `
-UPDATE expenses
-SET amount_baisa = $1, category = $2::expense_category, description = $3, occurred_on = $4::date, updated_at = now()
-WHERE id = $5::uuid
-RETURNING created_at`
-	if err := tx.QueryRow(ctx, upd, req.AmountBaisa, string(req.Category), req.Description, req.OccurredOn, expenseID).
-		Scan(&e.CreatedAt); err != nil {
+		ID:          expenseID,
+	})
+	if err != nil {
 		s.logger.Errorw("update expense: update", "error", err)
 		return nil, types.NewServerError()
 	}
 
-	if req.AmountBaisa != oldAmount {
-		if err := s.writeAudit(ctx, tx, auditEntry{
+	if req.AmountBaisa != old.AmountBaisa {
+		if err := s.writeAudit(ctx, qtx, auditEntry{
 			GroupID:     groupID,
 			ActorUserID: caller.UserID,
 			Action:      ActionExpenseAmountChanged,
-			Before:      expenseAmountAudit{AmountBaisa: oldAmount},
+			Before:      expenseAmountAudit{AmountBaisa: old.AmountBaisa},
 			After:       expenseAmountAudit{AmountBaisa: req.AmountBaisa},
 		}); err != nil {
 			s.logger.Errorw("update expense: write audit", "error", err)
@@ -281,5 +250,14 @@ RETURNING created_at`
 		return nil, types.NewServerError()
 	}
 
-	return e, nil
+	return &types.Expense{
+		ID:          expenseID,
+		GroupID:     groupID,
+		PaidBy:      caller.UserID,
+		AmountBaisa: req.AmountBaisa,
+		Category:    req.Category,
+		Description: req.Description,
+		OccurredOn:  req.OccurredOn,
+		CreatedAt:   createdAt,
+	}, nil
 }

@@ -85,6 +85,14 @@ services:
       KEYCLOAK_JWKS_URL: http://keycloak:8080/realms/expense-splitter/protocol/openid-connect/certs
       KEYCLOAK_ISSUERS: http://localhost:8081/realms/expense-splitter,http://keycloak:8080/realms/expense-splitter
       KEYCLOAK_AUDIENCE: expense-splitter-api
+      # Server-side calls into Keycloak: /auth/login (password grant on the public
+      # client) and /auth/register (create user via the admin API). BASE_URL is the
+      # internal address; admin creds match the bootstrap admin above.
+      KEYCLOAK_BASE_URL: http://keycloak:8080
+      KEYCLOAK_REALM: expense-splitter
+      KEYCLOAK_CLIENT_ID: expense-splitter-api
+      KEYCLOAK_ADMIN_USER: admin
+      KEYCLOAK_ADMIN_PASSWORD: admin
     ports:
       - "8080:8080"
 

@@ -6,16 +6,17 @@ import (
 
 	"github.com/jackc/pgx/v5"
 
+	"expense-splitter/database/repo"
 	"expense-splitter/types"
 )
 
 type Authorizer struct {
-	db     *types.DBPool
+	q      *repo.Queries
 	logger *types.Logger
 }
 
-func NewAuthorizer(db *types.DBPool, logger *types.Logger) *Authorizer {
-	return &Authorizer{db: db, logger: logger}
+func NewAuthorizer(q *repo.Queries, logger *types.Logger) *Authorizer {
+	return &Authorizer{q: q, logger: logger}
 }
 
 func (a *Authorizer) RequireGlobalAdmin(p *types.Principal) types.APIError {
@@ -33,7 +34,8 @@ func (a *Authorizer) RequireVerified(p *types.Principal) types.APIError {
 }
 
 func (a *Authorizer) RequireGroupRole(ctx context.Context, p *types.Principal, groupID string, need types.MembershipRole) types.APIError {
-	m, err := a.membership(ctx, groupID, p.UserID)
+	row, err := a.q.GetMembership(ctx, repo.GetMembershipParams{GroupID: groupID, UserID: p.UserID})
+	m := types.Membership{Role: row.Role, Status: row.Status}
 	found := true
 	switch {
 	case errors.Is(err, pgx.ErrNoRows):
@@ -59,12 +61,4 @@ func decideGroupRole(p *types.Principal, m types.Membership, found bool, need ty
 		return types.NewForbiddenError("insufficient group role")
 	}
 	return nil
-}
-
-func (a *Authorizer) membership(ctx context.Context, groupID, userID string) (types.Membership, error) {
-	var m types.Membership
-	err := a.db.QueryRow(ctx,
-		`SELECT role, status FROM memberships WHERE group_id = $1::uuid AND user_id = $2::uuid`,
-		groupID, userID).Scan(&m.Role, &m.Status)
-	return m, err
 }

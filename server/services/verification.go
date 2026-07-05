@@ -6,6 +6,7 @@ import (
 
 	"github.com/jackc/pgx/v5"
 
+	"expense-splitter/database/repo"
 	"expense-splitter/types"
 )
 
@@ -26,17 +27,12 @@ func (s *Services) SubmitVerification(ctx context.Context, id types.Identity) (*
 		return nil, types.NewConflictError("account already verified")
 	}
 
-	const q = `
-UPDATE users SET verification_status = 'pending_verification', updated_at = now()
-WHERE id = $1::uuid
-RETURNING id, email, is_global_admin, verification_status`
-	updated := &types.Principal{}
-	if err := s.db.QueryRow(ctx, q, p.UserID).
-		Scan(&updated.UserID, &updated.Email, &updated.IsGlobalAdmin, &updated.VerificationStatus); err != nil {
+	row, err := s.q.SetUserVerificationPending(ctx, p.UserID)
+	if err != nil {
 		s.logger.Errorw("submit verification: update", "error", err)
 		return nil, types.NewServerError()
 	}
-	return updated, nil
+	return principalFromRow(row.ID, row.Email, row.IsGlobalAdmin, row.VerificationStatus), nil
 }
 
 func (s *Services) SetVerification(ctx context.Context, actor types.Identity, targetUserID string, decision types.VerificationStatus) (*types.Principal, types.APIError) {
@@ -56,16 +52,14 @@ func (s *Services) SetVerification(ctx context.Context, actor types.Identity, ta
 		return nil, apiErr
 	}
 
-	const q = `
-UPDATE users SET verification_status = $1::verification_status, verified_by = $2::uuid, updated_at = now()
-WHERE id = $3::uuid
-RETURNING id, email, is_global_admin, verification_status`
-	p := &types.Principal{}
-	err = s.db.QueryRow(ctx, q, decision, admin.UserID, targetUserID).
-		Scan(&p.UserID, &p.Email, &p.IsGlobalAdmin, &p.VerificationStatus)
+	row, err := s.q.SetUserVerification(ctx, repo.SetUserVerificationParams{
+		Status:     decision,
+		VerifiedBy: admin.UserID,
+		ID:         targetUserID,
+	})
 	switch {
 	case err == nil:
-		return p, nil
+		return principalFromRow(row.ID, row.Email, row.IsGlobalAdmin, row.VerificationStatus), nil
 	case errors.Is(err, pgx.ErrNoRows):
 		return nil, types.NewNotFoundError("user not found")
 	default:

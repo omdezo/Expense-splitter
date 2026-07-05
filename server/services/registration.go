@@ -6,6 +6,7 @@ import (
 
 	"github.com/jackc/pgx/v5"
 
+	"expense-splitter/database/repo"
 	"expense-splitter/types"
 )
 
@@ -28,40 +29,29 @@ func (s *Services) Register(ctx context.Context, id types.Identity) (*types.Prin
 		return nil, types.NewServerError()
 	}
 	defer tx.Rollback(ctx)
+	qtx := s.q.WithTx(tx)
 
-	const link = `
-UPDATE users SET keycloak_id = $1::uuid, updated_at = now()
-WHERE email = $2 AND keycloak_id IS NULL
-RETURNING id, email, is_global_admin, verification_status`
-	p := &types.Principal{}
-	err = tx.QueryRow(ctx, link, id.Subject, id.Email).
-		Scan(&p.UserID, &p.Email, &p.IsGlobalAdmin, &p.VerificationStatus)
+	linked, err := qtx.LinkUserKeycloakID(ctx, repo.LinkUserKeycloakIDParams{KeycloakID: id.Subject, Email: id.Email})
 	switch {
 	case err == nil:
 		if err := tx.Commit(ctx); err != nil {
 			s.logger.Errorw("register: commit link", "error", err)
 			return nil, types.NewServerError()
 		}
-		return p, nil
+		return principalFromRow(linked.ID, linked.Email, linked.IsGlobalAdmin, linked.VerificationStatus), nil
 	case !errors.Is(err, pgx.ErrNoRows):
 		s.logger.Errorw("register: link by email", "error", err)
 		return nil, types.NewServerError()
 	}
 
-	const ins = `
-INSERT INTO users (keycloak_id, email)
-VALUES ($1::uuid, $2)
-ON CONFLICT (email) DO NOTHING
-RETURNING id, email, is_global_admin, verification_status`
-	err = tx.QueryRow(ctx, ins, id.Subject, id.Email).
-		Scan(&p.UserID, &p.Email, &p.IsGlobalAdmin, &p.VerificationStatus)
+	created, err := qtx.CreateUser(ctx, repo.CreateUserParams{KeycloakID: id.Subject, Email: id.Email})
 	switch {
 	case err == nil:
 		if err := tx.Commit(ctx); err != nil {
 			s.logger.Errorw("register: commit insert", "error", err)
 			return nil, types.NewServerError()
 		}
-		return p, nil
+		return principalFromRow(created.ID, created.Email, created.IsGlobalAdmin, created.VerificationStatus), nil
 	case errors.Is(err, pgx.ErrNoRows):
 		return nil, types.NewConflictError("email already registered")
 	default:
@@ -71,11 +61,21 @@ RETURNING id, email, is_global_admin, verification_status`
 }
 
 func (s *Services) principalByKeycloakID(ctx context.Context, subject string) (*types.Principal, error) {
-	const q = `SELECT id, email, is_global_admin, verification_status FROM users WHERE keycloak_id = $1::uuid`
-	p := &types.Principal{}
-	if err := s.db.QueryRow(ctx, q, subject).
-		Scan(&p.UserID, &p.Email, &p.IsGlobalAdmin, &p.VerificationStatus); err != nil {
+	row, err := s.q.GetUserByKeycloakID(ctx, subject)
+	if err != nil {
 		return nil, err
 	}
-	return p, nil
+	return principalFromRow(row.ID, row.Email, row.IsGlobalAdmin, row.VerificationStatus), nil
+}
+
+func (s *Services) principalByUserID(ctx context.Context, userID string) (*types.Principal, error) {
+	row, err := s.q.GetUserByID(ctx, userID)
+	if err != nil {
+		return nil, err
+	}
+	return principalFromRow(row.ID, row.Email, row.IsGlobalAdmin, row.VerificationStatus), nil
+}
+
+func principalFromRow(id, email string, isGlobalAdmin bool, status types.VerificationStatus) *types.Principal {
+	return &types.Principal{UserID: id, Email: email, IsGlobalAdmin: isGlobalAdmin, VerificationStatus: status}
 }

@@ -13,10 +13,29 @@ type KeycloakConfig struct {
 	JWKSURL  string
 	Issuers  []string
 	Audience string
+
+	// Server-side calls into Keycloak (login token exchange + admin user
+	// provisioning). BaseURL is the address the server itself reaches Keycloak
+	// at (internal in Docker), distinct from the issuer minted into tokens.
+	BaseURL       string
+	Realm         string
+	ClientID      string
+	AdminUser     string
+	AdminPassword string
 }
 
 func (k KeycloakConfig) Enabled() bool {
 	return k.JWKSURL != ""
+}
+
+// LoginEnabled reports whether the password-grant login proxy can run.
+func (k KeycloakConfig) LoginEnabled() bool {
+	return k.BaseURL != "" && k.Realm != "" && k.ClientID != ""
+}
+
+// AdminEnabled reports whether admin-API user provisioning (register) can run.
+func (k KeycloakConfig) AdminEnabled() bool {
+	return k.LoginEnabled() && k.AdminUser != "" && k.AdminPassword != ""
 }
 
 type PostgresConfig struct {

@@ -6,6 +6,7 @@ import (
 
 	"github.com/jackc/pgx/v5"
 
+	"expense-splitter/database/repo"
 	"expense-splitter/types"
 )
 
@@ -30,22 +31,24 @@ func (s *Services) CreateGroup(ctx context.Context, id types.Identity, req types
 		return nil, types.NewServerError()
 	}
 	defer tx.Rollback(ctx)
+	qtx := s.q.WithTx(tx)
 
-	g := &types.Group{}
-	const insGroup = `
-INSERT INTO groups (name, start_date, end_date, expected_member_count, created_by)
-VALUES ($1, $2, $3, $4, $5::uuid)
-RETURNING id, name, start_date, end_date, status, invite_token, expected_member_count, created_by, created_at`
-	if err := tx.QueryRow(ctx, insGroup, req.Name, req.StartDate, req.EndDate, req.ExpectedMemberCount, caller.UserID).
-		Scan(&g.ID, &g.Name, &g.StartDate, &g.EndDate, &g.Status, &g.InviteToken, &g.ExpectedMemberCount, &g.CreatedBy, &g.CreatedAt); err != nil {
+	row, err := qtx.CreateGroup(ctx, repo.CreateGroupParams{
+		Name:                req.Name,
+		StartDate:           req.StartDate,
+		EndDate:             req.EndDate,
+		ExpectedMemberCount: req.ExpectedMemberCount,
+		CreatedBy:           caller.UserID,
+	})
+	if err != nil {
 		s.logger.Errorw("create group: insert group", "error", err)
 		return nil, types.NewServerError()
 	}
 
-	const insMembership = `
-INSERT INTO memberships (group_id, user_id, role, status)
-VALUES ($1::uuid, $2::uuid, 'group_admin', 'approved')`
-	if _, err := tx.Exec(ctx, insMembership, g.ID, adminUserID); err != nil {
+	if err := qtx.CreateGroupAdminMembership(ctx, repo.CreateGroupAdminMembershipParams{
+		GroupID: row.ID,
+		UserID:  adminUserID,
+	}); err != nil {
 		s.logger.Errorw("create group: insert group admin membership", "error", err)
 		return nil, types.NewServerError()
 	}
@@ -55,7 +58,163 @@ VALUES ($1::uuid, $2::uuid, 'group_admin', 'approved')`
 		return nil, types.NewServerError()
 	}
 
-	return g, nil
+	return &types.Group{
+		ID:                  row.ID,
+		Name:                row.Name,
+		StartDate:           row.StartDate,
+		EndDate:             row.EndDate,
+		Status:              row.Status,
+		InviteToken:         row.InviteToken,
+		ExpectedMemberCount: row.ExpectedMemberCount,
+		CreatedBy:           row.CreatedBy,
+		CreatedAt:           row.CreatedAt,
+	}, nil
+}
+
+func (s *Services) UpdateGroup(ctx context.Context, id types.Identity, groupID string, req types.UpdateGroupRequest) (*types.Group, types.APIError) {
+	caller, err := s.principalByKeycloakID(ctx, id.Subject)
+	switch {
+	case errors.Is(err, pgx.ErrNoRows):
+		return nil, types.NewForbiddenError("account not registered")
+	case err != nil:
+		s.logger.Errorw("update group: resolve caller", "error", err)
+		return nil, types.NewServerError()
+	}
+	if apiErr := s.authz.RequireGroupRole(ctx, caller, groupID, types.RoleGroupAdmin); apiErr != nil {
+		return nil, apiErr
+	}
+
+	status, err := s.q.GetGroupStatus(ctx, groupID)
+	switch {
+	case errors.Is(err, pgx.ErrNoRows):
+		return nil, types.NewNotFoundError("group not found")
+	case err != nil:
+		s.logger.Errorw("update group: load status", "error", err)
+		return nil, types.NewServerError()
+	}
+	if status != types.GroupOpen {
+		return nil, types.NewConflictError("group is not open")
+	}
+
+	row, err := s.q.UpdateOpenGroup(ctx, repo.UpdateOpenGroupParams{
+		Name:                req.Name,
+		StartDate:           req.StartDate,
+		EndDate:             req.EndDate,
+		ExpectedMemberCount: req.ExpectedMemberCount,
+		ID:                  groupID,
+	})
+	switch {
+	case errors.Is(err, pgx.ErrNoRows):
+		// The status=open guard failed between the check above and here — the
+		// group was closed concurrently.
+		return nil, types.NewConflictError("group is not open")
+	case err != nil:
+		s.logger.Errorw("update group: update", "error", err)
+		return nil, types.NewServerError()
+	}
+	return &types.Group{
+		ID:                  row.ID,
+		Name:                row.Name,
+		StartDate:           row.StartDate,
+		EndDate:             row.EndDate,
+		Status:              row.Status,
+		InviteToken:         row.InviteToken,
+		ExpectedMemberCount: row.ExpectedMemberCount,
+		CreatedBy:           row.CreatedBy,
+		CreatedAt:           row.CreatedAt,
+	}, nil
+}
+
+func (s *Services) ListMyGroups(ctx context.Context, id types.Identity) ([]types.GroupListItem, types.APIError) {
+	caller, err := s.principalByKeycloakID(ctx, id.Subject)
+	switch {
+	case errors.Is(err, pgx.ErrNoRows):
+		return nil, types.NewForbiddenError("account not registered")
+	case err != nil:
+		s.logger.Errorw("list my groups: resolve caller", "error", err)
+		return nil, types.NewServerError()
+	}
+
+	rows, err := s.q.ListGroupsForUser(ctx, caller.UserID)
+	if err != nil {
+		s.logger.Errorw("list my groups: query", "error", err)
+		return nil, types.NewServerError()
+	}
+
+	out := make([]types.GroupListItem, 0, len(rows))
+	for _, r := range rows {
+		out = append(out, types.GroupListItem{
+			Group: types.Group{
+				ID:                  r.ID,
+				Name:                r.Name,
+				StartDate:           r.StartDate,
+				EndDate:             r.EndDate,
+				Status:              r.Status,
+				InviteToken:         r.InviteToken,
+				ExpectedMemberCount: r.ExpectedMemberCount,
+				CreatedBy:           r.CreatedBy,
+				CreatedAt:           r.CreatedAt,
+			},
+			Role:             r.Role,
+			MembershipStatus: r.MembershipStatus,
+		})
+	}
+	return out, nil
+}
+
+func (s *Services) GetGroup(ctx context.Context, id types.Identity, groupID string) (*types.GroupDetail, types.APIError) {
+	caller, err := s.principalByKeycloakID(ctx, id.Subject)
+	switch {
+	case errors.Is(err, pgx.ErrNoRows):
+		return nil, types.NewForbiddenError("account not registered")
+	case err != nil:
+		s.logger.Errorw("get group: resolve caller", "error", err)
+		return nil, types.NewServerError()
+	}
+	if apiErr := s.authz.RequireGroupRole(ctx, caller, groupID, types.RoleMember); apiErr != nil {
+		return nil, apiErr
+	}
+
+	g, err := s.q.GetGroupByID(ctx, groupID)
+	switch {
+	case errors.Is(err, pgx.ErrNoRows):
+		return nil, types.NewNotFoundError("group not found")
+	case err != nil:
+		s.logger.Errorw("get group: load group", "error", err)
+		return nil, types.NewServerError()
+	}
+
+	members, err := s.q.ListGroupMembers(ctx, groupID)
+	if err != nil {
+		s.logger.Errorw("get group: query members", "error", err)
+		return nil, types.NewServerError()
+	}
+
+	detail := &types.GroupDetail{
+		Group: types.Group{
+			ID:                  g.ID,
+			Name:                g.Name,
+			StartDate:           g.StartDate,
+			EndDate:             g.EndDate,
+			Status:              g.Status,
+			InviteToken:         g.InviteToken,
+			ExpectedMemberCount: g.ExpectedMemberCount,
+			CreatedBy:           g.CreatedBy,
+			CreatedAt:           g.CreatedAt,
+		},
+		Members: make([]types.MembershipView, 0, len(members)),
+	}
+	for _, m := range members {
+		detail.Members = append(detail.Members, types.MembershipView{
+			GroupID:   groupID,
+			UserID:    m.UserID,
+			Email:     m.Email,
+			Role:      m.Role,
+			Status:    m.Status,
+			CreatedAt: m.CreatedAt,
+		})
+	}
+	return detail, nil
 }
 
 func (s *Services) resolveGroupAdmin(ctx context.Context, caller *types.Principal, assignedID *string) (string, types.APIError) {
@@ -87,13 +246,4 @@ func (s *Services) resolveGroupAdmin(ctx context.Context, caller *types.Principa
 		return "", apiErr
 	}
 	return caller.UserID, nil
-}
-
-func (s *Services) principalByUserID(ctx context.Context, userID string) (*types.Principal, error) {
-	const q = `SELECT id, email, is_global_admin, verification_status FROM users WHERE id = $1::uuid`
-	p := &types.Principal{}
-	if err := s.db.QueryRow(ctx, q, userID).Scan(&p.UserID, &p.Email, &p.IsGlobalAdmin, &p.VerificationStatus); err != nil {
-		return nil, err
-	}
-	return p, nil
 }

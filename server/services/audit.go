@@ -4,7 +4,7 @@ import (
 	"context"
 	"encoding/json"
 
-	"github.com/jackc/pgx/v5"
+	"expense-splitter/database/repo"
 )
 
 const ActionExpenseAmountChanged = "expense.amount_changed"
@@ -17,7 +17,9 @@ type auditEntry struct {
 	After       any
 }
 
-func (s *Services) writeAudit(ctx context.Context, tx pgx.Tx, e auditEntry) error {
+// writeAudit records an audit row through the SAME queries handle as the change
+// it documents — pass the WithTx-bound queries so both commit atomically.
+func (s *Services) writeAudit(ctx context.Context, q *repo.Queries, e auditEntry) error {
 	before, err := jsonbArg(e.Before)
 	if err != nil {
 		return err
@@ -26,20 +28,18 @@ func (s *Services) writeAudit(ctx context.Context, tx pgx.Tx, e auditEntry) erro
 	if err != nil {
 		return err
 	}
-	_, err = tx.Exec(ctx,
-		`INSERT INTO audit_log (group_id, actor_user_id, action, before, after)
-		 VALUES ($1::uuid, $2::uuid, $3, $4::jsonb, $5::jsonb)`,
-		e.GroupID, e.ActorUserID, e.Action, before, after)
-	return err
+	return q.CreateAuditEntry(ctx, repo.CreateAuditEntryParams{
+		GroupID:     e.GroupID,
+		ActorUserID: e.ActorUserID,
+		Action:      e.Action,
+		Before:      before,
+		After:       after,
+	})
 }
 
-func jsonbArg(v any) (any, error) {
+func jsonbArg(v any) ([]byte, error) {
 	if v == nil {
 		return nil, nil
 	}
-	b, err := json.Marshal(v)
-	if err != nil {
-		return nil, err
-	}
-	return string(b), nil
+	return json.Marshal(v)
 }

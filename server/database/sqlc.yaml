@@ -10,3 +10,74 @@ sql:
         out: "repo"
         sql_package: "pgx/v5"
         emit_json_tags: true
+        overrides:
+          # Match how the app already scans: uuid <-> string, timestamptz <-> time.Time.
+          - db_type: "uuid"
+            go_type: "string"
+          - db_type: "uuid"
+            nullable: true
+            go_type:
+              type: "string"
+              pointer: true
+          - db_type: "pg_catalog.timestamptz"
+            go_type:
+              import: "time"
+              type: "Time"
+          - db_type: "timestamptz"
+            go_type:
+              import: "time"
+              type: "Time"
+          - db_type: "citext"
+            go_type: "string"
+          # occurred_on travels as YYYY-MM-DD text; queries cast at the SQL edge.
+          - db_type: "pg_catalog.date"
+            go_type: "string"
+          - db_type: "date"
+            go_type: "string"
+          - db_type: "pg_catalog.int4"
+            nullable: true
+            go_type:
+              type: "int"
+              pointer: true
+          - db_type: "int4"
+            nullable: true
+            go_type:
+              type: "int"
+              pointer: true
+          # Postgres enums map to the app's own enum types in server/types.
+          - db_type: "verification_status"
+            go_type:
+              import: "expense-splitter/types"
+              type: "VerificationStatus"
+          - db_type: "group_status"
+            go_type:
+              import: "expense-splitter/types"
+              type: "GroupStatus"
+          - db_type: "membership_role"
+            go_type:
+              import: "expense-splitter/types"
+              type: "MembershipRole"
+          - db_type: "membership_status"
+            go_type:
+              import: "expense-splitter/types"
+              type: "MembershipStatus"
+          - db_type: "expense_category"
+            go_type:
+              import: "expense-splitter/types"
+              type: "ExpenseCategory"
+          - db_type: "expense_category"
+            nullable: true
+            go_type:
+              import: "expense-splitter/types"
+              type: "ExpenseCategory"
+              pointer: true
+          - db_type: "pg_catalog.text"
+            nullable: true
+            go_type:
+              type: "string"
+              pointer: true
+          - db_type: "text"
+            nullable: true
+            go_type:
+              type: "string"
+              pointer: true

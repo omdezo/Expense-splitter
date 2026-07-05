@@ -6,6 +6,7 @@ import (
 
 	"github.com/jackc/pgx/v5"
 
+	"expense-splitter/database/repo"
 	"expense-splitter/types"
 )
 
@@ -22,9 +23,7 @@ func (s *Services) RequestToJoin(ctx context.Context, id types.Identity, inviteT
 		return nil, apiErr
 	}
 
-	var groupID string
-	var status types.GroupStatus
-	err = s.db.QueryRow(ctx, `SELECT id, status FROM groups WHERE invite_token = $1::uuid`, inviteToken).Scan(&groupID, &status)
+	g, err := s.q.GetGroupByInviteToken(ctx, inviteToken)
 	switch {
 	case errors.Is(err, pgx.ErrNoRows):
 		return nil, types.NewNotFoundError("invalid invite token")
@@ -32,20 +31,21 @@ func (s *Services) RequestToJoin(ctx context.Context, id types.Identity, inviteT
 		s.logger.Errorw("join: resolve group", "error", err)
 		return nil, types.NewServerError()
 	}
-	if status != types.GroupOpen {
+	if g.Status != types.GroupOpen {
 		return nil, types.NewConflictError("group is not open")
 	}
 
-	v := &types.MembershipView{GroupID: groupID, UserID: caller.UserID, Email: caller.Email}
-	const ins = `
-INSERT INTO memberships (group_id, user_id)
-VALUES ($1::uuid, $2::uuid)
-ON CONFLICT (group_id, user_id) DO NOTHING
-RETURNING role, status, created_at`
-	err = s.db.QueryRow(ctx, ins, groupID, caller.UserID).Scan(&v.Role, &v.Status, &v.CreatedAt)
+	row, err := s.q.CreateJoinRequest(ctx, repo.CreateJoinRequestParams{GroupID: g.ID, UserID: caller.UserID})
 	switch {
 	case err == nil:
-		return v, nil
+		return &types.MembershipView{
+			GroupID:   g.ID,
+			UserID:    caller.UserID,
+			Email:     caller.Email,
+			Role:      row.Role,
+			Status:    row.Status,
+			CreatedAt: row.CreatedAt,
+		}, nil
 	case errors.Is(err, pgx.ErrNoRows):
 		return nil, types.NewConflictError("already a member or a join request is pending")
 	default:
@@ -75,15 +75,20 @@ func (s *Services) setMemberStatus(ctx context.Context, id types.Identity, group
 		return nil, apiErr
 	}
 
-	v := &types.MembershipView{GroupID: groupID, UserID: targetUserID}
-	const q = `
-UPDATE memberships SET status = $1::membership_status, updated_at = now()
-WHERE group_id = $2::uuid AND user_id = $3::uuid AND status = 'requested'
-RETURNING role, status, created_at`
-	err = s.db.QueryRow(ctx, q, decision, groupID, targetUserID).Scan(&v.Role, &v.Status, &v.CreatedAt)
+	row, err := s.q.DecideJoinRequest(ctx, repo.DecideJoinRequestParams{
+		Status:  decision,
+		GroupID: groupID,
+		UserID:  targetUserID,
+	})
 	switch {
 	case err == nil:
-		return v, nil
+		return &types.MembershipView{
+			GroupID:   groupID,
+			UserID:    targetUserID,
+			Role:      row.Role,
+			Status:    row.Status,
+			CreatedAt: row.CreatedAt,
+		}, nil
 	case errors.Is(err, pgx.ErrNoRows):
 		return nil, types.NewNotFoundError("no pending join request for this user")
 	default:
@@ -105,31 +110,22 @@ func (s *Services) ListJoinRequests(ctx context.Context, id types.Identity, grou
 		return nil, apiErr
 	}
 
-	const q = `
-SELECT m.user_id, u.email, m.role, m.status, m.created_at
-FROM memberships m
-JOIN users u ON u.id = m.user_id
-WHERE m.group_id = $1::uuid AND m.status = 'requested'
-ORDER BY m.created_at`
-	rows, err := s.db.Query(ctx, q, groupID)
+	rows, err := s.q.ListJoinRequests(ctx, groupID)
 	if err != nil {
 		s.logger.Errorw("list requests: query", "error", err)
 		return nil, types.NewServerError()
 	}
-	defer rows.Close()
 
-	out := []types.MembershipView{}
-	for rows.Next() {
-		v := types.MembershipView{GroupID: groupID}
-		if err := rows.Scan(&v.UserID, &v.Email, &v.Role, &v.Status, &v.CreatedAt); err != nil {
-			s.logger.Errorw("list requests: scan", "error", err)
-			return nil, types.NewServerError()
-		}
-		out = append(out, v)
-	}
-	if err := rows.Err(); err != nil {
-		s.logger.Errorw("list requests: rows", "error", err)
-		return nil, types.NewServerError()
+	out := make([]types.MembershipView, 0, len(rows))
+	for _, r := range rows {
+		out = append(out, types.MembershipView{
+			GroupID:   groupID,
+			UserID:    r.UserID,
+			Email:     r.Email,
+			Role:      r.Role,
+			Status:    r.Status,
+			CreatedAt: r.CreatedAt,
+		})
 	}
 	return out, nil
 }
@@ -147,9 +143,7 @@ func (s *Services) TransferAdmin(ctx context.Context, id types.Identity, groupID
 		return nil, apiErr
 	}
 
-	var role types.MembershipRole
-	var status types.MembershipStatus
-	err = s.db.QueryRow(ctx, `SELECT role, status FROM memberships WHERE group_id = $1::uuid AND user_id = $2::uuid`, groupID, newAdminID).Scan(&role, &status)
+	target, err := s.q.GetMembership(ctx, repo.GetMembershipParams{GroupID: groupID, UserID: newAdminID})
 	switch {
 	case errors.Is(err, pgx.ErrNoRows):
 		return nil, types.NewNotFoundError("user is not a member of this group")
@@ -157,10 +151,10 @@ func (s *Services) TransferAdmin(ctx context.Context, id types.Identity, groupID
 		s.logger.Errorw("transfer admin: load target", "error", err)
 		return nil, types.NewServerError()
 	}
-	if status != types.MembershipApproved {
+	if target.Status != types.MembershipApproved {
 		return nil, types.NewBadRequestError("new admin must be an approved member")
 	}
-	if role == types.RoleGroupAdmin {
+	if target.Role == types.RoleGroupAdmin {
 		return nil, types.NewConflictError("user is already the group admin")
 	}
 
@@ -170,17 +164,17 @@ func (s *Services) TransferAdmin(ctx context.Context, id types.Identity, groupID
 		return nil, types.NewServerError()
 	}
 	defer tx.Rollback(ctx)
+	qtx := s.q.WithTx(tx)
 
 	// Demote the current admin FIRST: the one_group_admin_per_group index forbids
 	// two admins, so promoting before demoting would violate it.
-	if _, err := tx.Exec(ctx, `UPDATE memberships SET role = 'member', updated_at = now() WHERE group_id = $1::uuid AND role = 'group_admin'`, groupID); err != nil {
+	if err := qtx.DemoteGroupAdmin(ctx, groupID); err != nil {
 		s.logger.Errorw("transfer admin: demote", "error", err)
 		return nil, types.NewServerError()
 	}
 
-	v := &types.MembershipView{GroupID: groupID, UserID: newAdminID}
-	if err := tx.QueryRow(ctx, `UPDATE memberships SET role = 'group_admin', updated_at = now() WHERE group_id = $1::uuid AND user_id = $2::uuid AND status = 'approved' RETURNING role, status, created_at`, groupID, newAdminID).
-		Scan(&v.Role, &v.Status, &v.CreatedAt); err != nil {
+	promoted, err := qtx.PromoteToGroupAdmin(ctx, repo.PromoteToGroupAdminParams{GroupID: groupID, UserID: newAdminID})
+	if err != nil {
 		s.logger.Errorw("transfer admin: promote", "error", err)
 		return nil, types.NewServerError()
 	}
@@ -191,7 +185,13 @@ func (s *Services) TransferAdmin(ctx context.Context, id types.Identity, groupID
 	}
 
 	s.logger.Infow("group admin transferred", "group_id", groupID, "new_admin", newAdminID, "by", caller.UserID)
-	return v, nil
+	return &types.MembershipView{
+		GroupID:   groupID,
+		UserID:    newAdminID,
+		Role:      promoted.Role,
+		Status:    promoted.Status,
+		CreatedAt: promoted.CreatedAt,
+	}, nil
 }
 
 func (s *Services) RemoveMember(ctx context.Context, id types.Identity, groupID, targetUserID string) types.APIError {
@@ -212,9 +212,7 @@ func (s *Services) RemoveMember(ctx context.Context, id types.Identity, groupID,
 		}
 	}
 
-	var membershipID string
-	var role types.MembershipRole
-	err = s.db.QueryRow(ctx, `SELECT id, role FROM memberships WHERE group_id = $1::uuid AND user_id = $2::uuid`, groupID, targetUserID).Scan(&membershipID, &role)
+	m, err := s.q.GetMembership(ctx, repo.GetMembershipParams{GroupID: groupID, UserID: targetUserID})
 	switch {
 	case errors.Is(err, pgx.ErrNoRows):
 		return types.NewNotFoundError("user is not a member of this group")
@@ -223,12 +221,12 @@ func (s *Services) RemoveMember(ctx context.Context, id types.Identity, groupID,
 		return types.NewServerError()
 	}
 
-	if role == types.RoleGroupAdmin {
+	if m.Role == types.RoleGroupAdmin {
 		return types.NewConflictError("the group admin must transfer the role before being removed")
 	}
 
-	var hasExpenses bool
-	if err := s.db.QueryRow(ctx, `SELECT EXISTS(SELECT 1 FROM expenses WHERE group_id = $1::uuid AND paid_by = $2::uuid)`, groupID, membershipID).Scan(&hasExpenses); err != nil {
+	hasExpenses, err := s.q.MembershipHasExpenses(ctx, repo.MembershipHasExpensesParams{GroupID: groupID, PaidBy: m.ID})
+	if err != nil {
 		s.logger.Errorw("remove member: check expenses", "error", err)
 		return types.NewServerError()
 	}
@@ -236,7 +234,7 @@ func (s *Services) RemoveMember(ctx context.Context, id types.Identity, groupID,
 		return types.NewConflictError("cannot remove a member who has recorded expenses")
 	}
 
-	if _, err := s.db.Exec(ctx, `DELETE FROM memberships WHERE id = $1::uuid`, membershipID); err != nil {
+	if err := s.q.DeleteMembership(ctx, m.ID); err != nil {
 		s.logger.Errorw("remove member: delete", "error", err)
 		return types.NewServerError()
 	}

@@ -20,9 +20,14 @@ func Load() *types.Config {
 			SSLMode:  os.Getenv("DB_SSLMODE"),
 		},
 		Keycloak: types.KeycloakConfig{
-			JWKSURL:  os.Getenv("KEYCLOAK_JWKS_URL"),
-			Issuers:  splitAndTrim(os.Getenv("KEYCLOAK_ISSUERS")),
-			Audience: os.Getenv("KEYCLOAK_AUDIENCE"),
+			JWKSURL:       os.Getenv("KEYCLOAK_JWKS_URL"),
+			Issuers:       splitAndTrim(os.Getenv("KEYCLOAK_ISSUERS")),
+			Audience:      os.Getenv("KEYCLOAK_AUDIENCE"),
+			BaseURL:       os.Getenv("KEYCLOAK_BASE_URL"),
+			Realm:         os.Getenv("KEYCLOAK_REALM"),
+			ClientID:      os.Getenv("KEYCLOAK_CLIENT_ID"),
+			AdminUser:     os.Getenv("KEYCLOAK_ADMIN_USER"),
+			AdminPassword: os.Getenv("KEYCLOAK_ADMIN_PASSWORD"),
 		},
 		GlobalAdminEmail: os.Getenv("GLOBAL_ADMIN_EMAIL"),
 	}
@@ -57,14 +62,41 @@ func Load() *types.Config {
 		cfg.Port, cfg.Postgres.User, cfg.Postgres.Host,
 		cfg.Postgres.Port, cfg.Postgres.Name, cfg.Postgres.SSLMode)
 
+	if cfg.Keycloak.BaseURL == "" {
+		cfg.Keycloak.BaseURL = baseFromJWKS(cfg.Keycloak.JWKSURL)
+	}
+	if cfg.Keycloak.Realm == "" {
+		cfg.Keycloak.Realm = "expense-splitter"
+	}
+	if cfg.Keycloak.ClientID == "" {
+		if cfg.Keycloak.Audience != "" {
+			cfg.Keycloak.ClientID = cfg.Keycloak.Audience
+		} else {
+			cfg.Keycloak.ClientID = "expense-splitter-api"
+		}
+	}
+
 	if cfg.Keycloak.Enabled() {
 		log.Printf("keycloak auth: jwks=%s issuers=%s audience=%s",
 			cfg.Keycloak.JWKSURL, strings.Join(cfg.Keycloak.Issuers, ","), cfg.Keycloak.Audience)
+		log.Printf("keycloak calls: base=%s realm=%s client=%s login=%t admin=%t",
+			cfg.Keycloak.BaseURL, cfg.Keycloak.Realm, cfg.Keycloak.ClientID,
+			cfg.Keycloak.LoginEnabled(), cfg.Keycloak.AdminEnabled())
 	} else {
 		log.Print("keycloak auth: DISABLED (KEYCLOAK_JWKS_URL not set) — protected endpoints will reject all requests")
 	}
 
 	return cfg
+}
+
+// baseFromJWKS derives the Keycloak base URL (scheme://host[:port]) from the
+// JWKS URL, so a single KEYCLOAK_JWKS_URL is enough when KEYCLOAK_BASE_URL is
+// not set explicitly. "http://keycloak:8080/realms/x/..." -> "http://keycloak:8080".
+func baseFromJWKS(jwks string) string {
+	if i := strings.Index(jwks, "/realms/"); i > 0 {
+		return jwks[:i]
+	}
+	return ""
 }
 
 func splitAndTrim(s string) []string {
