@@ -32,6 +32,23 @@ SET verification_status = @status, verified_by = @verified_by::uuid, updated_at 
 WHERE id = @id::uuid
 RETURNING id, email, is_global_admin, verification_status;
 
+-- name: ListUsers :many
+SELECT id, email, is_global_admin, verification_status, (keycloak_id IS NOT NULL)::bool AS linked, created_at
+FROM users
+WHERE (sqlc.narg('status')::verification_status IS NULL OR verification_status = sqlc.narg('status')::verification_status)
+ORDER BY created_at;
+
+-- name: GetUserAdminView :one
+SELECT id, email, is_global_admin, verification_status, (keycloak_id IS NOT NULL)::bool AS linked, created_at
+FROM users
+WHERE id = @id::uuid;
+
+-- name: CountUserMemberships :one
+SELECT COUNT(*)::bigint FROM memberships WHERE user_id = @user_id::uuid;
+
+-- name: DeleteUser :exec
+DELETE FROM users WHERE id = @id::uuid;
+
 -- name: SeedGlobalAdmin :execrows
 INSERT INTO users (email, is_global_admin, verification_status)
 VALUES (@email, true, 'verified')

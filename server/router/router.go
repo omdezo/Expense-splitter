@@ -53,8 +53,13 @@ func New(h *handler.Handler, auth *appmw.Auth) *echo.Echo {
 	e.POST("/payments/:id/finalize", h.FinalizePayment, auth.Require())
 	e.POST("/payments/:id/reject", h.RejectPayment, auth.Require())
 
+	e.GET("/admin/users", h.AdminListUsers, auth.Require())
+	e.GET("/admin/users/:id", h.AdminGetUser, auth.Require())
+	e.DELETE("/admin/users/:id", h.AdminDeleteUser, auth.Require())
 	e.POST("/admin/users/:id/approve", h.ApproveUser, auth.Require())
 	e.POST("/admin/users/:id/reject", h.RejectUser, auth.Require())
+	e.GET("/admin/groups", h.AdminListGroups, auth.Require())
+	e.DELETE("/admin/groups/:id", h.AdminDeleteGroup, auth.Require())
 
 	return e
 }

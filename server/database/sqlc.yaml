@@ -49,6 +49,12 @@ sql:
             go_type:
               import: "expense-splitter/types"
               type: "VerificationStatus"
+          - db_type: "verification_status"
+            nullable: true
+            go_type:
+              import: "expense-splitter/types"
+              type: "VerificationStatus"
+              pointer: true
           - db_type: "group_status"
             go_type:
               import: "expense-splitter/types"

@@ -53,6 +53,16 @@ SELECT EXISTS(
 -- name: DeleteMembership :exec
 DELETE FROM memberships WHERE id = @id::uuid;
 
+-- name: ListUserMemberships :many
+SELECT m.group_id, g.name AS group_name, m.role, m.status, m.created_at
+FROM memberships m
+JOIN groups g ON g.id = m.group_id
+WHERE m.user_id = @user_id::uuid
+ORDER BY m.created_at;
+
+-- name: DeleteGroupMemberships :exec
+DELETE FROM memberships WHERE group_id = @group_id::uuid;
+
 -- name: ListApprovedMembers :many
 SELECT m.id, m.user_id, u.email
 FROM memberships m

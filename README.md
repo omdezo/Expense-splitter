@@ -41,13 +41,14 @@ Everything else requires `Authorization: Bearer <token>` from `/auth/login`.
 | Area | Endpoints |
 |---|---|
 | Account | `GET /me` · `POST /register` (link token→local row) · `POST /verification` |
-| Admin | `POST /admin/users/:id/approve` · `POST /admin/users/:id/reject` |
+| Admin — users | `GET /admin/users?status=` · `GET /admin/users/:id` · `POST /admin/users/:id/approve\|reject` · `DELETE /admin/users/:id` |
+| Admin — groups | `GET /admin/groups` · `DELETE /admin/groups/:id` (pristine only) |
 | Groups | `GET /groups` · `POST /groups` · `GET /groups/:id` · `PATCH /groups/:id` · `POST /groups/:id/close` |
 | Membership | `POST /groups/join` · `GET /groups/:id/requests` · `POST /groups/:id/members/:userId/approve\|reject\|promote` · `DELETE /groups/:id/members/:userId` |
 | Expenses | `POST /groups/:id/expenses` · `GET /groups/:id/expenses?category=&paid_by=&q=` · `PATCH /groups/:id/expenses/:expenseId` · `DELETE /groups/:id/expenses/:expenseId` |
 | Settlement | `GET /groups/:id/summary` · `GET /groups/:id/settlement` (plan + "N of M settled") · `GET /groups/:id/report.pdf` (fully-settled only) |
-| Payments (two-key) | `POST /payments/:id/proof` (debtor) · `/confirm` `/dispute` (creditor) · `/finalize` `/reject` (admin) |
-| Audit | `GET /groups/:id/audit` (group-admin/global-admin) |
+| Payments (two-key) | `POST /payments/:id/proof` (debtor; JSON note or multipart image) · `GET /payments/:id/proof` + `/proof/image` · `/confirm` `/dispute` (creditor) · `/finalize` `/reject` (admin) |
+| Ops | `GET /groups/:id/audit` (admins) · `POST /groups/:id/nudges?hours=` (idempotent reminders) |
 
 The `postman/` collection covers all of these with auto-chained variables —
 run **Login** first, then top to bottom.

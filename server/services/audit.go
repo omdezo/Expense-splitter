@@ -22,7 +22,8 @@ type auditEntry struct {
 }
 
 // writeAudit records an audit row through the SAME queries handle as the change
-// it documents — pass the WithTx-bound queries so both commit atomically.
+// it documents — pass the WithTx-bound queries so both commit atomically. An
+// empty GroupID records a system-level event (group_id NULL).
 func (s *Services) writeAudit(ctx context.Context, q *repo.Queries, e auditEntry) error {
 	before, err := jsonbArg(e.Before)
 	if err != nil {
@@ -32,8 +33,12 @@ func (s *Services) writeAudit(ctx context.Context, q *repo.Queries, e auditEntry
 	if err != nil {
 		return err
 	}
+	var groupID *string
+	if e.GroupID != "" {
+		groupID = &e.GroupID
+	}
 	return q.CreateAuditEntry(ctx, repo.CreateAuditEntryParams{
-		GroupID:     e.GroupID,
+		GroupID:     groupID,
 		ActorUserID: e.ActorUserID,
 		Action:      e.Action,
 		Before:      before,

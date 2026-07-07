@@ -1,28 +1,40 @@
 # Postman collection
 
-`expense-splitter.postman_collection.json` — every current API endpoint (22 requests, 7 folders).
+`expense-splitter.postman_collection.json` — **every API endpoint** (44 requests, 10 folders, ordered like a real session).
 
 ## Import
-Postman → **Import** → select the file. Everything lives in one collection; variables are stored on the collection itself (no separate environment needed).
+Postman → **Import** → select the file (replace the old copy if prompted). No separate environment needed — variables live on the collection.
 
-## Run order (happy path)
-1. Start the stack: `docker compose up --build -d` (server → http://localhost:8080).
-2. **Auth → Login** — stores `access_token`; all authed requests inherit it via collection-level Bearer auth.
-3. **Account → Get me** — stores your `userId`.
-4. **Groups → Create group** — stores `groupId` and `inviteToken`.
-5. **Expenses → Record expense** — stores `expenseId`.
-6. Explore the rest (members, list/update, close, admin).
+## Folders (run top to bottom)
+| # | Folder | What's inside |
+|---|--------|----------------|
+| 1 | Public / Auth | health, sign-up, **Login** (stores the token), public share-token status |
+| 2 | Account | me, link token→local row, submit verification |
+| 3 | Admin — Users | list (+status filter), detail with memberships, approve/reject, delete |
+| 4 | Admin — Groups | list all groups, delete pristine group |
+| 5 | Groups | list mine, create (user / admin-assign), details, update, close |
+| 6 | Membership | join by invite, requests, approve/reject/promote, remove/leave |
+| 7 | Expenses | record (equal + weighted), list w/ filters, update, delete |
+| 8 | Settlement | summary, plan (+"N of M settled"), PDF report |
+| 9 | Payments & Proofs | text + image proof, proof metadata/bytes, confirm/dispute/finalize/reject |
+| 10 | Ops | audit log, idempotent nudges |
 
-## Variables (collection → Variables tab)
-| var | default | notes |
-| --- | --- | --- |
-| `baseUrl` | `http://localhost:8080` | the API (login is proxied, so you never hit Keycloak directly) |
-| `email` / `password` | `admin@expense-splitter.local` / `admin` | seed global admin |
-| `newUserEmail` / `newUserPassword` / `newUserName` | `testuser@example.com` / `password123` / `Test User` | used by Auth → Register (password ≥ 8 chars) |
-| `access_token`, `groupId`, `userId`, `expenseId`, `inviteToken` | — | auto-filled by test scripts; can be set manually |
+## Happy-path order (as the seed admin)
+1. **1 → Login** (defaults: `admin@expense-splitter.local` / `admin`)
+2. **1 → Register** — creates a member, stores `memberUserId` (unique email every run)
+3. **3 → Approve user** — verifies that member
+4. **5 → Create group (as global admin — assign member)** — stores `groupId` + `inviteToken`
+5. Continue with membership, expenses, close, then folder 9 for the two-key payment flow
+
+To act as a *member* instead: set the collection vars `email`/`password` to a registered user's and re-run Login.
+
+## Auto-chained variables
+`access_token` (Login) · `memberUserId` (Register / List join requests) · `userId` (Get me) ·
+`groupId` + `inviteToken` (Create group) · `statusToken` (Get group) · `expenseId` (Record expense) ·
+`paymentId` (Settlement plan). All editable per-request in the **Params** tab.
 
 ## Notes
-- Public (no token): `GET /health`, `POST /auth/register`, `POST /auth/login`. Everything else needs a valid token — run **Login** first.
-- List-expenses filters (`category`, `paid_by`, `q`) are added but **disabled** by default — enable them in that request's Params tab.
-- Dates: group `start_date`/`end_date` are RFC3339 timestamps; expense `occurred_on` is `YYYY-MM-DD` and must fall within the trip range.
-- Admin endpoints require the caller to be the global admin (log in as the seed admin).
+- Tokens expire in ~5 minutes — re-run **Login** on 401s.
+- Image proof upload: pick a real image file in the request's Body tab (magic-byte validated; max 5 MiB).
+- The PDF report: use **Send and Download**.
+- After a DB wipe (`make db-reset`): `docker compose exec server ./server seed`, then admin **Login** + **2 → Link token**.

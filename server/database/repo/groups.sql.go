@@ -61,6 +61,15 @@ func (q *Queries) CreateGroup(ctx context.Context, arg CreateGroupParams) (Creat
 	return i, err
 }
 
+const deleteGroup = `-- name: DeleteGroup :exec
+DELETE FROM groups WHERE id = $1::uuid
+`
+
+func (q *Queries) DeleteGroup(ctx context.Context, id string) error {
+	_, err := q.db.Exec(ctx, deleteGroup, id)
+	return err
+}
+
 const getGroupByID = `-- name: GetGroupByID :one
 SELECT id, name, start_date, end_date, status, invite_token, status_token, expected_member_count, created_by, created_at
 FROM groups
@@ -151,6 +160,70 @@ func (q *Queries) GetGroupStatus(ctx context.Context, id string) (types.GroupSta
 	var status types.GroupStatus
 	err := row.Scan(&status)
 	return status, err
+}
+
+const groupHasHistory = `-- name: GroupHasHistory :one
+SELECT (EXISTS(SELECT 1 FROM expenses WHERE group_id = $1::uuid)
+     OR EXISTS(SELECT 1 FROM payments WHERE group_id = $1::uuid)
+     OR EXISTS(SELECT 1 FROM settlement_runs WHERE group_id = $1::uuid)
+     OR EXISTS(SELECT 1 FROM audit_log WHERE group_id = $1::uuid))::bool AS has_history
+`
+
+func (q *Queries) GroupHasHistory(ctx context.Context, id string) (bool, error) {
+	row := q.db.QueryRow(ctx, groupHasHistory, id)
+	var has_history bool
+	err := row.Scan(&has_history)
+	return has_history, err
+}
+
+const listAllGroups = `-- name: ListAllGroups :many
+SELECT g.id, g.name, g.start_date, g.end_date, g.status, g.created_by, g.created_at,
+       COALESCE((SELECT COUNT(*) FROM memberships m WHERE m.group_id = g.id AND m.status = 'approved'), 0)::bigint AS member_count,
+       COALESCE((SELECT SUM(e.amount_baisa) FROM expenses e WHERE e.group_id = g.id AND e.deleted_at IS NULL), 0)::bigint AS total_spent
+FROM groups g
+ORDER BY g.created_at DESC
+`
+
+type ListAllGroupsRow struct {
+	ID          string            `json:"id"`
+	Name        string            `json:"name"`
+	StartDate   time.Time         `json:"start_date"`
+	EndDate     time.Time         `json:"end_date"`
+	Status      types.GroupStatus `json:"status"`
+	CreatedBy   string            `json:"created_by"`
+	CreatedAt   time.Time         `json:"created_at"`
+	MemberCount int64             `json:"member_count"`
+	TotalSpent  int64             `json:"total_spent"`
+}
+
+func (q *Queries) ListAllGroups(ctx context.Context) ([]ListAllGroupsRow, error) {
+	rows, err := q.db.Query(ctx, listAllGroups)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []ListAllGroupsRow
+	for rows.Next() {
+		var i ListAllGroupsRow
+		if err := rows.Scan(
+			&i.ID,
+			&i.Name,
+			&i.StartDate,
+			&i.EndDate,
+			&i.Status,
+			&i.CreatedBy,
+			&i.CreatedAt,
+			&i.MemberCount,
+			&i.TotalSpent,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
 }
 
 const listGroupsForUser = `-- name: ListGroupsForUser :many

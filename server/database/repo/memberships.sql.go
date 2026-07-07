@@ -78,6 +78,15 @@ func (q *Queries) DecideJoinRequest(ctx context.Context, arg DecideJoinRequestPa
 	return i, err
 }
 
+const deleteGroupMemberships = `-- name: DeleteGroupMemberships :exec
+DELETE FROM memberships WHERE group_id = $1::uuid
+`
+
+func (q *Queries) DeleteGroupMemberships(ctx context.Context, groupID string) error {
+	_, err := q.db.Exec(ctx, deleteGroupMemberships, groupID)
+	return err
+}
+
 const deleteMembership = `-- name: DeleteMembership :exec
 DELETE FROM memberships WHERE id = $1::uuid
 `
@@ -229,6 +238,48 @@ func (q *Queries) ListJoinRequests(ctx context.Context, groupID string) ([]ListJ
 		if err := rows.Scan(
 			&i.UserID,
 			&i.Email,
+			&i.Role,
+			&i.Status,
+			&i.CreatedAt,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const listUserMemberships = `-- name: ListUserMemberships :many
+SELECT m.group_id, g.name AS group_name, m.role, m.status, m.created_at
+FROM memberships m
+JOIN groups g ON g.id = m.group_id
+WHERE m.user_id = $1::uuid
+ORDER BY m.created_at
+`
+
+type ListUserMembershipsRow struct {
+	GroupID   string                 `json:"group_id"`
+	GroupName string                 `json:"group_name"`
+	Role      types.MembershipRole   `json:"role"`
+	Status    types.MembershipStatus `json:"status"`
+	CreatedAt time.Time              `json:"created_at"`
+}
+
+func (q *Queries) ListUserMemberships(ctx context.Context, userID string) ([]ListUserMembershipsRow, error) {
+	rows, err := q.db.Query(ctx, listUserMemberships, userID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []ListUserMembershipsRow
+	for rows.Next() {
+		var i ListUserMembershipsRow
+		if err := rows.Scan(
+			&i.GroupID,
+			&i.GroupName,
 			&i.Role,
 			&i.Status,
 			&i.CreatedAt,

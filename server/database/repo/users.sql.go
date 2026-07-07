@@ -7,9 +7,21 @@ package repo
 
 import (
 	"context"
+	"time"
 
 	"expense-splitter/types"
 )
+
+const countUserMemberships = `-- name: CountUserMemberships :one
+SELECT COUNT(*)::bigint FROM memberships WHERE user_id = $1::uuid
+`
+
+func (q *Queries) CountUserMemberships(ctx context.Context, userID string) (int64, error) {
+	row := q.db.QueryRow(ctx, countUserMemberships, userID)
+	var column_1 int64
+	err := row.Scan(&column_1)
+	return column_1, err
+}
 
 const createUser = `-- name: CreateUser :one
 INSERT INTO users (keycloak_id, email)
@@ -38,6 +50,44 @@ func (q *Queries) CreateUser(ctx context.Context, arg CreateUserParams) (CreateU
 		&i.Email,
 		&i.IsGlobalAdmin,
 		&i.VerificationStatus,
+	)
+	return i, err
+}
+
+const deleteUser = `-- name: DeleteUser :exec
+DELETE FROM users WHERE id = $1::uuid
+`
+
+func (q *Queries) DeleteUser(ctx context.Context, id string) error {
+	_, err := q.db.Exec(ctx, deleteUser, id)
+	return err
+}
+
+const getUserAdminView = `-- name: GetUserAdminView :one
+SELECT id, email, is_global_admin, verification_status, (keycloak_id IS NOT NULL)::bool AS linked, created_at
+FROM users
+WHERE id = $1::uuid
+`
+
+type GetUserAdminViewRow struct {
+	ID                 string                   `json:"id"`
+	Email              string                   `json:"email"`
+	IsGlobalAdmin      bool                     `json:"is_global_admin"`
+	VerificationStatus types.VerificationStatus `json:"verification_status"`
+	Linked             bool                     `json:"linked"`
+	CreatedAt          time.Time                `json:"created_at"`
+}
+
+func (q *Queries) GetUserAdminView(ctx context.Context, id string) (GetUserAdminViewRow, error) {
+	row := q.db.QueryRow(ctx, getUserAdminView, id)
+	var i GetUserAdminViewRow
+	err := row.Scan(
+		&i.ID,
+		&i.Email,
+		&i.IsGlobalAdmin,
+		&i.VerificationStatus,
+		&i.Linked,
+		&i.CreatedAt,
 	)
 	return i, err
 }
@@ -121,6 +171,49 @@ func (q *Queries) LinkUserKeycloakID(ctx context.Context, arg LinkUserKeycloakID
 		&i.VerificationStatus,
 	)
 	return i, err
+}
+
+const listUsers = `-- name: ListUsers :many
+SELECT id, email, is_global_admin, verification_status, (keycloak_id IS NOT NULL)::bool AS linked, created_at
+FROM users
+WHERE ($1::verification_status IS NULL OR verification_status = $1::verification_status)
+ORDER BY created_at
+`
+
+type ListUsersRow struct {
+	ID                 string                   `json:"id"`
+	Email              string                   `json:"email"`
+	IsGlobalAdmin      bool                     `json:"is_global_admin"`
+	VerificationStatus types.VerificationStatus `json:"verification_status"`
+	Linked             bool                     `json:"linked"`
+	CreatedAt          time.Time                `json:"created_at"`
+}
+
+func (q *Queries) ListUsers(ctx context.Context, status *types.VerificationStatus) ([]ListUsersRow, error) {
+	rows, err := q.db.Query(ctx, listUsers, status)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []ListUsersRow
+	for rows.Next() {
+		var i ListUsersRow
+		if err := rows.Scan(
+			&i.ID,
+			&i.Email,
+			&i.IsGlobalAdmin,
+			&i.VerificationStatus,
+			&i.Linked,
+			&i.CreatedAt,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
 }
 
 const seedGlobalAdmin = `-- name: SeedGlobalAdmin :execrows

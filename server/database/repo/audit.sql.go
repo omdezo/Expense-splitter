@@ -16,11 +16,11 @@ VALUES ($1::uuid, $2::uuid, $3, $4, $5)
 `
 
 type CreateAuditEntryParams struct {
-	GroupID     string `json:"group_id"`
-	ActorUserID string `json:"actor_user_id"`
-	Action      string `json:"action"`
-	Before      []byte `json:"before"`
-	After       []byte `json:"after"`
+	GroupID     *string `json:"group_id"`
+	ActorUserID string  `json:"actor_user_id"`
+	Action      string  `json:"action"`
+	Before      []byte  `json:"before"`
+	After       []byte  `json:"after"`
 }
 
 func (q *Queries) CreateAuditEntry(ctx context.Context, arg CreateAuditEntryParams) error {

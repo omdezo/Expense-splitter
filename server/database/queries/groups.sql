@@ -49,6 +49,22 @@ UPDATE groups SET status = 'closed', updated_at = now() WHERE id = @id::uuid;
 UPDATE groups SET status = 'settled', updated_at = now()
 WHERE id = @id::uuid AND status = 'closed';
 
+-- name: ListAllGroups :many
+SELECT g.id, g.name, g.start_date, g.end_date, g.status, g.created_by, g.created_at,
+       COALESCE((SELECT COUNT(*) FROM memberships m WHERE m.group_id = g.id AND m.status = 'approved'), 0)::bigint AS member_count,
+       COALESCE((SELECT SUM(e.amount_baisa) FROM expenses e WHERE e.group_id = g.id AND e.deleted_at IS NULL), 0)::bigint AS total_spent
+FROM groups g
+ORDER BY g.created_at DESC;
+
+-- name: GroupHasHistory :one
+SELECT (EXISTS(SELECT 1 FROM expenses WHERE group_id = @id::uuid)
+     OR EXISTS(SELECT 1 FROM payments WHERE group_id = @id::uuid)
+     OR EXISTS(SELECT 1 FROM settlement_runs WHERE group_id = @id::uuid)
+     OR EXISTS(SELECT 1 FROM audit_log WHERE group_id = @id::uuid))::bool AS has_history;
+
+-- name: DeleteGroup :exec
+DELETE FROM groups WHERE id = @id::uuid;
+
 -- name: GetGroupPublicStatus :one
 SELECT g.name,
        g.status,

@@ -1,129 +1,192 @@
 {
   "info": {
     "name": "Expense Splitter API",
-    "description": "Backend API for the Expense Splitter (Go + Echo + Postgres + Keycloak).\n\n## Quick start\n1. Bring the stack up: `docker compose up --build -d` (server on http://localhost:8080).\n2. Run **Auth → Login** — it stores the Keycloak access token into the `access_token` collection variable; every authed request inherits it via collection-level Bearer auth.\n3. Run **Groups → Create group** — stores `groupId` (and `inviteToken`).\n4. Run **Account → Get me** — stores your `userId`.\n5. Record/list expenses, manage members, etc.\n\n## Parameters\n- **Path variables** (`:groupId`, `:userId`, `:expenseId`) appear in each request's **Params** tab and are pre-filled from the collection variables below (set automatically by the test scripts). Override them per-request there.\n- **Query params** (list expenses: `category`, `paid_by`, `q`) also live in the Params tab — enable the checkbox to apply a filter.\n- **Body** params are in the Body tab (raw JSON).\n\n## Variables (collection → Variables tab)\n- `baseUrl` (default http://localhost:8080)\n- `email` / `password` — login creds (default: seed global admin admin@expense-splitter.local / admin)\n- `newUserEmail` / `newUserPassword` / `newUserName` — used by Auth → Register\n- `groupId`, `userId`, `expenseId`, `inviteToken` — auto-filled by test scripts, or set manually.\n\nNote: login is proxied through our API (`/auth/login`), so you only ever hit `{{baseUrl}}`, never Keycloak directly.",
+    "description": "Complete collection for the Expense Splitter backend (Go + Echo + Postgres + Keycloak + MinIO).\n\n## Quick start\n1. `docker compose up --build -d` (server on http://localhost:8080), then seed once: `docker compose exec server ./server seed`.\n2. **Public / Auth -> Login** — stores the token; every request inherits it.\n3. Run folders top to bottom: registered users, verification, groups, expenses, close, payments.\n\n## Chained variables (set automatically by test scripts)\n- Login -> `access_token` | Register -> `memberUserId` | Get me -> `userId`\n- Create group -> `groupId`, `inviteToken` | Get group -> `statusToken`\n- Record expense -> `expenseId` | Get settlement plan -> `paymentId`\n\n## Roles cheat-sheet\n- Seed **global admin**: `admin@expense-splitter.local` / `admin` (cannot be a trip member; creates groups only via `admin_user_id`).\n- **Group admin**: creator of the group (or assigned member); approves joins, closes, finalizes payments.\n- **Member**: records own expenses, submits proof for what they owe, confirms what they are owed.\n",
     "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
   },
   "auth": {
     "type": "bearer",
     "bearer": [
-      { "key": "token", "value": "{{access_token}}", "type": "string" }
+      {
+        "key": "token",
+        "value": "{{access_token}}",
+        "type": "string"
+      }
     ]
   },
   "variable": [
-    { "key": "baseUrl", "value": "http://localhost:8080" },
-    { "key": "email", "value": "admin@expense-splitter.local" },
-    { "key": "password", "value": "admin" },
-    { "key": "newUserEmail", "value": "testuser@example.com" },
-    { "key": "newUserPassword", "value": "password123" },
-    { "key": "newUserName", "value": "Test User" },
-    { "key": "access_token", "value": "" },
-    { "key": "groupId", "value": "" },
-    { "key": "userId", "value": "" },
-    { "key": "memberUserId", "value": "" },
-    { "key": "expenseId", "value": "" },
-    { "key": "inviteToken", "value": "" },
-    { "key": "statusToken", "value": "" },
-    { "key": "paymentId", "value": "" }
+    {
+      "key": "baseUrl",
+      "value": "http://localhost:8080"
+    },
+    {
+      "key": "email",
+      "value": "admin@expense-splitter.local"
+    },
+    {
+      "key": "password",
+      "value": "admin"
+    },
+    {
+      "key": "newUserEmail",
+      "value": "testuser@example.com"
+    },
+    {
+      "key": "newUserPassword",
+      "value": "password123"
+    },
+    {
+      "key": "newUserName",
+      "value": "Test User"
+    },
+    {
+      "key": "access_token",
+      "value": ""
+    },
+    {
+      "key": "userId",
+      "value": ""
+    },
+    {
+      "key": "memberUserId",
+      "value": ""
+    },
+    {
+      "key": "groupId",
+      "value": ""
+    },
+    {
+      "key": "inviteToken",
+      "value": ""
+    },
+    {
+      "key": "statusToken",
+      "value": ""
+    },
+    {
+      "key": "expenseId",
+      "value": ""
+    },
+    {
+      "key": "paymentId",
+      "value": ""
+    }
   ],
   "item": [
     {
-      "name": "Health",
+      "name": "1. Public / Auth",
       "item": [
         {
           "name": "Health check",
           "request": {
-            "auth": { "type": "noauth" },
             "method": "GET",
             "header": [],
             "url": {
               "raw": "{{baseUrl}}/health",
-              "host": ["{{baseUrl}}"],
-              "path": ["health"]
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "health"
+              ]
             },
-            "description": "Public liveness/DB-ping check."
-          }
-        }
-      ]
-    },
-    {
-      "name": "Auth (public)",
-      "item": [
-        {
-          "name": "Register (sign up)",
-          "event": [
-            {
-              "listen": "test",
-              "script": {
-                "type": "text/javascript",
-                "exec": [
-                  "const j = pm.response.json();",
-                  "if (j && j.id) { pm.collectionVariables.set('memberUserId', j.id); console.log('memberUserId stored: ' + j.id); }",
-                  "pm.test('status is 201 or 409', () => pm.expect([201,409]).to.include(pm.response.code));"
-                ]
-              }
+            "description": "Public liveness + DB ping.",
+            "auth": {
+              "type": "noauth"
             }
-          ],
-          "request": {
-            "auth": { "type": "noauth" },
-            "method": "POST",
-            "header": [{ "key": "Content-Type", "value": "application/json" }],
-            "body": {
-              "mode": "raw",
-              "raw": "{\n  \"email\": \"{{newUserEmail}}\",\n  \"password\": \"{{newUserPassword}}\",\n  \"name\": \"{{newUserName}}\"\n}",
-              "options": { "raw": { "language": "json" } }
-            },
-            "url": {
-              "raw": "{{baseUrl}}/auth/register",
-              "host": ["{{baseUrl}}"],
-              "path": ["auth", "register"]
-            },
-            "description": "Creates the user in Keycloak (admin API) and provisions the local users row. Body: email, password (>= 8 chars), name."
           }
         },
         {
-          "name": "Login",
+          "name": "Register (sign up)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/auth/register",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "auth",
+                "register"
+              ]
+            },
+            "description": "Public signup: creates the user in Keycloak and the local row (status `registered`). Stores {{memberUserId}}. A fresh email is generated on every run so it never 409s.",
+            "auth": {
+              "type": "noauth"
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"{{newUserEmail}}\",\n  \"password\": \"{{newUserPassword}}\",\n  \"name\": \"{{newUserName}}\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
           "event": [
+            {
+              "listen": "prerequest",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.collectionVariables.set('newUserEmail', 'member_' + Date.now() + '@example.com');"
+                ]
+              }
+            },
             {
               "listen": "test",
               "script": {
                 "type": "text/javascript",
                 "exec": [
                   "const j = pm.response.json();",
-                  "if (j && j.access_token) {",
-                  "  pm.collectionVariables.set('access_token', j.access_token);",
-                  "  console.log('access_token stored');",
-                  "}",
-                  "pm.test('status is 200', () => pm.response.to.have.status(200));",
-                  "pm.test('has access_token', () => pm.expect(j.access_token).to.be.a('string'));"
+                  "if (j && j.id) { pm.collectionVariables.set('memberUserId', j.id); console.log('memberUserId = ' + j.id); }",
+                  "pm.test('status is 201', () => pm.response.to.have.status(201));"
                 ]
               }
             }
-          ],
+          ]
+        },
+        {
+          "name": "Login",
           "request": {
-            "auth": { "type": "noauth" },
             "method": "POST",
-            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/auth/login",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "auth",
+                "login"
+              ]
+            },
+            "description": "Password login proxied to Keycloak. Stores {{access_token}} for the whole collection. Tokens expire after ~5 minutes — re-run when you see 401s.",
+            "auth": {
+              "type": "noauth"
+            },
             "body": {
               "mode": "raw",
               "raw": "{\n  \"email\": \"{{email}}\",\n  \"password\": \"{{password}}\"\n}",
-              "options": { "raw": { "language": "json" } }
-            },
-            "url": {
-              "raw": "{{baseUrl}}/auth/login",
-              "host": ["{{baseUrl}}"],
-              "path": ["auth", "login"]
-            },
-            "description": "Password-grant login proxied to Keycloak. On success stores {{access_token}} for all other requests."
-          }
-        }
-      ]
-    },
-    {
-      "name": "Account",
-      "item": [
-        {
-          "name": "Get me",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
           "event": [
             {
               "listen": "test",
@@ -131,37 +194,92 @@
                 "type": "text/javascript",
                 "exec": [
                   "const j = pm.response.json();",
-                  "if (j && j.local_user && j.local_user.id) {",
-                  "  pm.collectionVariables.set('userId', j.local_user.id);",
-                  "  console.log('userId stored: ' + j.local_user.id);",
-                  "}",
+                  "if (j && j.access_token) { pm.collectionVariables.set('access_token', j.access_token); console.log('token stored'); }",
                   "pm.test('status is 200', () => pm.response.to.have.status(200));"
                 ]
               }
             }
-          ],
+          ]
+        },
+        {
+          "name": "Public group status (by share token)",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/public/groups/:statusToken",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "public",
+                "groups",
+                ":statusToken"
+              ],
+              "variable": [
+                {
+                  "key": "statusToken",
+                  "value": "{{statusToken}}",
+                  "description": "From Get group details"
+                }
+              ]
+            },
+            "description": "The ONLY unauthenticated group view: name, status, total spent, member count — nothing else.",
+            "auth": {
+              "type": "noauth"
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "2. Account",
+      "item": [
+        {
+          "name": "Get me",
           "request": {
             "method": "GET",
             "header": [],
             "url": {
               "raw": "{{baseUrl}}/me",
-              "host": ["{{baseUrl}}"],
-              "path": ["me"]
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "me"
+              ]
             },
-            "description": "Returns token claims + the linked local user (if provisioned). Stores {{userId}}."
-          }
+            "description": "Token claims + linked local account. Stores {{userId}} (your own id)."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const j = pm.response.json();",
+                  "if (j && j.local_user && j.local_user.id) { pm.collectionVariables.set('userId', j.local_user.id); console.log('userId = ' + j.local_user.id); }",
+                  "pm.test('status is 200', () => pm.response.to.have.status(200));"
+                ]
+              }
+            }
+          ]
         },
         {
-          "name": "Register (link existing token)",
+          "name": "Link token to local row",
           "request": {
             "method": "POST",
             "header": [],
             "url": {
               "raw": "{{baseUrl}}/register",
-              "host": ["{{baseUrl}}"],
-              "path": ["register"]
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "register"
+              ]
             },
-            "description": "Provision-or-link the authenticated Keycloak identity to a local users row (idempotent). Used e.g. by the seeded admin on first login."
+            "description": "Provision-or-link the authenticated Keycloak identity (idempotent). The seed admin runs this once after a DB reset."
           }
         },
         {
@@ -171,580 +289,73 @@
             "header": [],
             "url": {
               "raw": "{{baseUrl}}/verification",
-              "host": ["{{baseUrl}}"],
-              "path": ["verification"]
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "verification"
+              ]
             },
-            "description": "Moves the caller from registered -> pending_verification."
+            "description": "registered -> pending_verification. The global admin then approves/rejects."
           }
         }
       ]
     },
     {
-      "name": "Groups",
+      "name": "3. Admin — Users",
       "item": [
         {
-          "name": "List my groups",
+          "name": "List users",
           "request": {
             "method": "GET",
             "header": [],
             "url": {
-              "raw": "{{baseUrl}}/groups",
-              "host": ["{{baseUrl}}"],
-              "path": ["groups"]
-            },
-            "description": "Groups the caller belongs to (approved memberships) with their role/status."
-          }
-        },
-        {
-          "name": "Create group (as verified user)",
-          "event": [
-            {
-              "listen": "test",
-              "script": {
-                "type": "text/javascript",
-                "exec": [
-                  "const j = pm.response.json();",
-                  "if (j && j.id) { pm.collectionVariables.set('groupId', j.id); console.log('groupId stored: ' + j.id); }",
-                  "if (j && j.invite_token) { pm.collectionVariables.set('inviteToken', j.invite_token); }",
-                  "pm.test('status is 201', () => pm.response.to.have.status(201));"
-                ]
-              }
-            }
-          ],
-          "request": {
-            "method": "POST",
-            "header": [{ "key": "Content-Type", "value": "application/json" }],
-            "body": {
-              "mode": "raw",
-              "raw": "{\n  \"name\": \"Road Trip 2026\",\n  \"start_date\": \"2026-07-01T00:00:00Z\",\n  \"end_date\": \"2026-07-10T00:00:00Z\",\n  \"expected_member_count\": 4\n}",
-              "options": { "raw": { "language": "json" } }
-            },
-            "url": {
-              "raw": "{{baseUrl}}/groups",
-              "host": ["{{baseUrl}}"],
-              "path": ["groups"]
-            },
-            "description": "Use this when logged in as a NORMAL verified user — the creator becomes group-admin. Do NOT send admin_user_id here (a non-admin sending it gets 403). Stores {{groupId}} and {{inviteToken}}. Dates are RFC3339 timestamps.\n\nNote: the seed admin is the GLOBAL admin and cannot use this form — use \"Create group (as global admin — assign member)\" instead."
-          }
-        },
-        {
-          "name": "Create group (as global admin — assign member)",
-          "event": [
-            {
-              "listen": "test",
-              "script": {
-                "type": "text/javascript",
-                "exec": [
-                  "const j = pm.response.json();",
-                  "if (j && j.id) { pm.collectionVariables.set('groupId', j.id); console.log('groupId stored: ' + j.id); }",
-                  "if (j && j.invite_token) { pm.collectionVariables.set('inviteToken', j.invite_token); }",
-                  "pm.test('status is 201', () => pm.response.to.have.status(201));"
-                ]
-              }
-            }
-          ],
-          "request": {
-            "method": "POST",
-            "header": [{ "key": "Content-Type", "value": "application/json" }],
-            "body": {
-              "mode": "raw",
-              "raw": "{\n  \"name\": \"Admin-Assigned Trip\",\n  \"start_date\": \"2026-07-01T00:00:00Z\",\n  \"end_date\": \"2026-07-10T00:00:00Z\",\n  \"admin_user_id\": \"{{memberUserId}}\"\n}",
-              "options": { "raw": { "language": "json" } }
-            },
-            "url": {
-              "raw": "{{baseUrl}}/groups",
-              "host": ["{{baseUrl}}"],
-              "path": ["groups"]
-            },
-            "description": "Use this when logged in as the GLOBAL admin. You must assign an existing VERIFIED member as group-admin via admin_user_id (the global admin is not a trip member). {{userId}} is captured by Auth → Register / Get me — verify that user first (Admin → Approve user). Stores {{groupId}} and {{inviteToken}}."
-          }
-        },
-        {
-          "name": "Get group (details + members)",
-          "event": [
-            {
-              "listen": "test",
-              "script": {
-                "type": "text/javascript",
-                "exec": [
-                  "const j = pm.response.json();",
-                  "if (j && j.status_token) { pm.collectionVariables.set('statusToken', j.status_token); console.log('statusToken stored'); }",
-                  "pm.test('status is 200', () => pm.response.to.have.status(200));"
-                ]
-              }
-            }
-          ],
-          "request": {
-            "method": "GET",
-            "header": [],
-            "url": {
-              "raw": "{{baseUrl}}/groups/:groupId",
-              "host": ["{{baseUrl}}"],
-              "path": ["groups", ":groupId"],
-              "variable": [
-                { "key": "groupId", "value": "{{groupId}}", "description": "Group UUID" }
-              ]
-            },
-            "description": "Group metadata + member list. Member-level access."
-          }
-        },
-        {
-          "name": "Update group",
-          "request": {
-            "method": "PATCH",
-            "header": [{ "key": "Content-Type", "value": "application/json" }],
-            "body": {
-              "mode": "raw",
-              "raw": "{\n  \"name\": \"Road Trip 2026 (renamed)\",\n  \"start_date\": \"2026-07-01T00:00:00Z\",\n  \"end_date\": \"2026-07-12T00:00:00Z\",\n  \"expected_member_count\": 5\n}",
-              "options": { "raw": { "language": "json" } }
-            },
-            "url": {
-              "raw": "{{baseUrl}}/groups/:groupId",
-              "host": ["{{baseUrl}}"],
-              "path": ["groups", ":groupId"],
-              "variable": [
-                { "key": "groupId", "value": "{{groupId}}", "description": "Group UUID" }
-              ]
-            },
-            "description": "Replace editable metadata. Group-admin only, open groups only."
-          }
-        },
-        {
-          "name": "Close group (compute settlement)",
-          "request": {
-            "method": "POST",
-            "header": [],
-            "url": {
-              "raw": "{{baseUrl}}/groups/:groupId/close",
-              "host": ["{{baseUrl}}"],
-              "path": ["groups", ":groupId", "close"],
-              "variable": [
-                { "key": "groupId", "value": "{{groupId}}", "description": "Group UUID" }
-              ]
-            },
-            "description": "Group-admin closes the group -> freezes expenses and computes the settlement plan (payments)."
-          }
-        },
-        {
-          "name": "Get settlement plan",
-          "event": [
-            {
-              "listen": "test",
-              "script": {
-                "type": "text/javascript",
-                "exec": [
-                  "const j = pm.response.json();",
-                  "if (j && j.payments && j.payments.length) {",
-                  "  pm.collectionVariables.set('paymentId', j.payments[0].id);",
-                  "  console.log('paymentId stored (first payment): ' + j.payments[0].id);",
-                  "  console.log(j.settled_count + ' of ' + j.total_count + ' settled');",
-                  "}",
-                  "pm.test('status is 200', () => pm.response.to.have.status(200));"
-                ]
-              }
-            }
-          ],
-          "request": {
-            "method": "GET",
-            "header": [],
-            "url": {
-              "raw": "{{baseUrl}}/groups/:groupId/settlement",
-              "host": ["{{baseUrl}}"],
-              "path": ["groups", ":groupId", "settlement"],
-              "variable": [
-                { "key": "groupId", "value": "{{groupId}}", "description": "Group UUID" }
-              ]
-            },
-            "description": "Members fetch the computed who-pays-whom plan for a CLOSED group: {from, to, amount_baisa, status} per payment plus the aggregate (settled_count / total_count, group_status). 409 if the group is still open. Stores {{paymentId}} (first payment)."
-          }
-        },
-        {
-          "name": "Get group summary",
-          "request": {
-            "method": "GET",
-            "header": [],
-            "url": {
-              "raw": "{{baseUrl}}/groups/:groupId/summary",
-              "host": ["{{baseUrl}}"],
-              "path": ["groups", ":groupId", "summary"],
-              "variable": [
-                { "key": "groupId", "value": "{{groupId}}", "description": "Group UUID" }
-              ]
-            },
-            "description": "Financial overview: total spent, spend per category, and per member paid / fair share / net (paid - fair share). Works for open and closed groups."
-          }
-        },
-        {
-          "name": "Get settlement report PDF",
-          "request": {
-            "method": "GET",
-            "header": [],
-            "url": {
-              "raw": "{{baseUrl}}/groups/:groupId/report.pdf",
-              "host": ["{{baseUrl}}"],
-              "path": ["groups", ":groupId", "report.pdf"],
-              "variable": [
-                { "key": "groupId", "value": "{{groupId}}", "description": "Group UUID" }
-              ]
-            },
-            "description": "PDF report for a FULLY-SETTLED group (409 before that): trip details, per-member balances, expenses, payment plan with who confirmed/finalized. Use Postman's 'Send and Download' to save the file."
-          }
-        },
-        {
-          "name": "Get audit log (admin)",
-          "request": {
-            "method": "GET",
-            "header": [],
-            "url": {
-              "raw": "{{baseUrl}}/groups/:groupId/audit",
-              "host": ["{{baseUrl}}"],
-              "path": ["groups", ":groupId", "audit"],
-              "variable": [
-                { "key": "groupId", "value": "{{groupId}}", "description": "Group UUID" }
-              ]
-            },
-            "description": "Group-admin/global-admin: the group's full audit trail (who, what, before/after, when) — expenses, close, membership decisions, handoff, proof/confirm/finalize/override events."
-          }
-        },
-        {
-          "name": "Public group status (no auth)",
-          "request": {
-            "auth": { "type": "noauth" },
-            "method": "GET",
-            "header": [],
-            "url": {
-              "raw": "{{baseUrl}}/public/groups/:statusToken",
-              "host": ["{{baseUrl}}"],
-              "path": ["public", "groups", ":statusToken"],
-              "variable": [
-                { "key": "statusToken", "value": "{{statusToken}}", "description": "Shareable status token (from Get group details)" }
-              ]
-            },
-            "description": "The ONLY unauthenticated group view. Returns name, open/closed/settled, total spent, member count — no per-person detail, no ids. Run 'Get group (details + members)' first to capture {{statusToken}}."
-          }
-        }
-      ]
-    },
-    {
-      "name": "Memberships",
-      "item": [
-        {
-          "name": "Join group (request)",
-          "request": {
-            "method": "POST",
-            "header": [{ "key": "Content-Type", "value": "application/json" }],
-            "body": {
-              "mode": "raw",
-              "raw": "{\n  \"invite_token\": \"{{inviteToken}}\"\n}",
-              "options": { "raw": { "language": "json" } }
-            },
-            "url": {
-              "raw": "{{baseUrl}}/groups/join",
-              "host": ["{{baseUrl}}"],
-              "path": ["groups", "join"]
-            },
-            "description": "Verified user requests to join using the group's shareable invite token."
-          }
-        },
-        {
-          "name": "List join requests",
-          "event": [
-            {
-              "listen": "test",
-              "script": {
-                "type": "text/javascript",
-                "exec": [
-                  "const arr = pm.response.json();",
-                  "if (Array.isArray(arr) && arr.length && arr[0].user_id) {",
-                  "  pm.collectionVariables.set('memberUserId', arr[0].user_id);",
-                  "  console.log('memberUserId stored (first requester): ' + arr[0].user_id);",
-                  "}",
-                  "pm.test('status is 200', () => pm.response.to.have.status(200));"
-                ]
-              }
-            }
-          ],
-          "request": {
-            "method": "GET",
-            "header": [],
-            "url": {
-              "raw": "{{baseUrl}}/groups/:groupId/requests",
-              "host": ["{{baseUrl}}"],
-              "path": ["groups", ":groupId", "requests"],
-              "variable": [
-                { "key": "groupId", "value": "{{groupId}}", "description": "Group UUID" }
-              ]
-            },
-            "description": "Group-admin view of pending join requests."
-          }
-        },
-        {
-          "name": "Approve member",
-          "request": {
-            "method": "POST",
-            "header": [],
-            "url": {
-              "raw": "{{baseUrl}}/groups/:groupId/members/:userId/approve",
-              "host": ["{{baseUrl}}"],
-              "path": ["groups", ":groupId", "members", ":userId", "approve"],
-              "variable": [
-                { "key": "groupId", "value": "{{groupId}}", "description": "Group UUID" },
-                { "key": "userId", "value": "{{memberUserId}}", "description": "Target user UUID" }
-              ]
-            },
-            "description": "Group-admin approves a join request."
-          }
-        },
-        {
-          "name": "Reject member",
-          "request": {
-            "method": "POST",
-            "header": [],
-            "url": {
-              "raw": "{{baseUrl}}/groups/:groupId/members/:userId/reject",
-              "host": ["{{baseUrl}}"],
-              "path": ["groups", ":groupId", "members", ":userId", "reject"],
-              "variable": [
-                { "key": "groupId", "value": "{{groupId}}", "description": "Group UUID" },
-                { "key": "userId", "value": "{{memberUserId}}", "description": "Target user UUID" }
-              ]
-            },
-            "description": "Group-admin rejects a join request."
-          }
-        },
-        {
-          "name": "Promote to admin (handoff)",
-          "request": {
-            "method": "POST",
-            "header": [],
-            "url": {
-              "raw": "{{baseUrl}}/groups/:groupId/members/:userId/promote",
-              "host": ["{{baseUrl}}"],
-              "path": ["groups", ":groupId", "members", ":userId", "promote"],
-              "variable": [
-                { "key": "groupId", "value": "{{groupId}}", "description": "Group UUID" },
-                { "key": "userId", "value": "{{memberUserId}}", "description": "New admin's user UUID" }
-              ]
-            },
-            "description": "Transfer group-admin role to another approved member (exactly one admin at all times)."
-          }
-        },
-        {
-          "name": "Remove member",
-          "request": {
-            "method": "DELETE",
-            "header": [],
-            "url": {
-              "raw": "{{baseUrl}}/groups/:groupId/members/:userId",
-              "host": ["{{baseUrl}}"],
-              "path": ["groups", ":groupId", "members", ":userId"],
-              "variable": [
-                { "key": "groupId", "value": "{{groupId}}", "description": "Group UUID" },
-                { "key": "userId", "value": "{{memberUserId}}", "description": "Target user UUID" }
-              ]
-            },
-            "description": "Remove a member (or leave). Blocked (409) if the member has any recorded expense."
-          }
-        }
-      ]
-    },
-    {
-      "name": "Expenses",
-      "item": [
-        {
-          "name": "Record expense",
-          "event": [
-            {
-              "listen": "test",
-              "script": {
-                "type": "text/javascript",
-                "exec": [
-                  "const j = pm.response.json();",
-                  "if (j && j.id) { pm.collectionVariables.set('expenseId', j.id); console.log('expenseId stored: ' + j.id); }",
-                  "pm.test('status is 201', () => pm.response.to.have.status(201));"
-                ]
-              }
-            }
-          ],
-          "request": {
-            "method": "POST",
-            "header": [{ "key": "Content-Type", "value": "application/json" }],
-            "body": {
-              "mode": "raw",
-              "raw": "{\n  \"amount_baisa\": 15000,\n  \"category\": \"food\",\n  \"description\": \"dinner at the hardware store cafe\",\n  \"occurred_on\": \"2026-07-03\"\n}",
-              "options": { "raw": { "language": "json" } }
-            },
-            "url": {
-              "raw": "{{baseUrl}}/groups/:groupId/expenses",
-              "host": ["{{baseUrl}}"],
-              "path": ["groups", ":groupId", "expenses"],
-              "variable": [
-                { "key": "groupId", "value": "{{groupId}}", "description": "Group UUID" }
-              ]
-            },
-            "description": "Record an expense you paid. paid_by is always the caller. category in: lodging, fuel, food, transport, other. occurred_on is YYYY-MM-DD within the trip range. Stores {{expenseId}}."
-          }
-        },
-        {
-          "name": "List expenses (with filters)",
-          "request": {
-            "method": "GET",
-            "header": [],
-            "url": {
-              "raw": "{{baseUrl}}/groups/:groupId/expenses?category=food&paid_by={{userId}}&q=dinner",
-              "host": ["{{baseUrl}}"],
-              "path": ["groups", ":groupId", "expenses"],
+              "raw": "{{baseUrl}}/admin/users",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "admin",
+                "users"
+              ],
               "query": [
-                { "key": "category", "value": "food", "description": "lodging|fuel|food|transport|other", "disabled": true },
-                { "key": "paid_by", "value": "{{userId}}", "description": "Filter by payer user UUID", "disabled": true },
-                { "key": "q", "value": "dinner", "description": "Search in description", "disabled": true }
+                {
+                  "key": "status",
+                  "value": "verified",
+                  "description": "registered|pending_verification|verified|rejected",
+                  "disabled": true
+                }
+              ]
+            },
+            "description": "Global admin: every account (id, email, status, keycloak-linked). Enable the status param to filter."
+          }
+        },
+        {
+          "name": "Get user (with memberships)",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/admin/users/:userId",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "admin",
+                "users",
+                ":userId"
               ],
               "variable": [
-                { "key": "groupId", "value": "{{groupId}}", "description": "Group UUID" }
+                {
+                  "key": "userId",
+                  "value": "{{memberUserId}}",
+                  "description": "User UUID"
+                }
               ]
             },
-            "description": "List expenses for a group. Descriptions >80 chars are truncated on a word boundary. Optional query filters (enable them in the Params tab): category, paid_by (user id), q (description search)."
+            "description": "Global admin: one account plus every group membership it holds."
           }
         },
-        {
-          "name": "Update expense",
-          "request": {
-            "method": "PATCH",
-            "header": [{ "key": "Content-Type", "value": "application/json" }],
-            "body": {
-              "mode": "raw",
-              "raw": "{\n  \"amount_baisa\": 18000,\n  \"category\": \"food\",\n  \"description\": \"dinner at the hardware store cafe (updated)\",\n  \"occurred_on\": \"2026-07-03\"\n}",
-              "options": { "raw": { "language": "json" } }
-            },
-            "url": {
-              "raw": "{{baseUrl}}/groups/:groupId/expenses/:expenseId",
-              "host": ["{{baseUrl}}"],
-              "path": ["groups", ":groupId", "expenses", ":expenseId"],
-              "variable": [
-                { "key": "groupId", "value": "{{groupId}}", "description": "Group UUID" },
-                { "key": "expenseId", "value": "{{expenseId}}", "description": "Expense UUID" }
-              ]
-            },
-            "description": "Edit your own expense while the group is open. An amount change is written to the audit log (before/after)."
-          }
-        }
-      ]
-    },
-    {
-      "name": "Expenses (delete)",
-      "item": [
-        {
-          "name": "Delete expense",
-          "request": {
-            "method": "DELETE",
-            "header": [],
-            "url": {
-              "raw": "{{baseUrl}}/groups/:groupId/expenses/:expenseId",
-              "host": ["{{baseUrl}}"],
-              "path": ["groups", ":groupId", "expenses", ":expenseId"],
-              "variable": [
-                { "key": "groupId", "value": "{{groupId}}", "description": "Group UUID" },
-                { "key": "expenseId", "value": "{{expenseId}}", "description": "Expense UUID" }
-              ]
-            },
-            "description": "Soft-delete your OWN expense while the group is open. Audited with the before amount."
-          }
-        }
-      ]
-    },
-    {
-      "name": "Payments (two-key confirmation)",
-      "item": [
-        {
-          "name": "Submit proof (debtor)",
-          "request": {
-            "method": "POST",
-            "header": [{ "key": "Content-Type", "value": "application/json" }],
-            "body": {
-              "mode": "raw",
-              "raw": "{\n  \"note\": \"paid 5000 baisa cash on day 3\"\n}",
-              "options": { "raw": { "language": "json" } }
-            },
-            "url": {
-              "raw": "{{baseUrl}}/payments/:paymentId/proof",
-              "host": ["{{baseUrl}}"],
-              "path": ["payments", ":paymentId", "proof"],
-              "variable": [
-                { "key": "paymentId", "value": "{{paymentId}}", "description": "Payment UUID (from Get settlement plan)" }
-              ]
-            },
-            "description": "DEBTOR only. pending|disputed -> proof_submitted. Text note for now (image upload comes with the storage epic). Log in as the payment's from-user."
-          }
-        },
-        {
-          "name": "Confirm receipt (creditor)",
-          "request": {
-            "method": "POST",
-            "header": [],
-            "url": {
-              "raw": "{{baseUrl}}/payments/:paymentId/confirm",
-              "host": ["{{baseUrl}}"],
-              "path": ["payments", ":paymentId", "confirm"],
-              "variable": [
-                { "key": "paymentId", "value": "{{paymentId}}", "description": "Payment UUID" }
-              ]
-            },
-            "description": "CREDITOR only. proof_submitted -> creditor_confirmed. Log in as the payment's to-user."
-          }
-        },
-        {
-          "name": "Dispute (creditor)",
-          "request": {
-            "method": "POST",
-            "header": [],
-            "url": {
-              "raw": "{{baseUrl}}/payments/:paymentId/dispute",
-              "host": ["{{baseUrl}}"],
-              "path": ["payments", ":paymentId", "dispute"],
-              "variable": [
-                { "key": "paymentId", "value": "{{paymentId}}", "description": "Payment UUID" }
-              ]
-            },
-            "description": "CREDITOR only: 'I did not receive this'. proof_submitted -> disputed (debtor can re-submit proof)."
-          }
-        },
-        {
-          "name": "Finalize (admin)",
-          "request": {
-            "method": "POST",
-            "header": [],
-            "url": {
-              "raw": "{{baseUrl}}/payments/:paymentId/finalize",
-              "host": ["{{baseUrl}}"],
-              "path": ["payments", ":paymentId", "finalize"],
-              "variable": [
-                { "key": "paymentId", "value": "{{paymentId}}", "description": "Payment UUID" }
-              ]
-            },
-            "description": "GROUP-ADMIN (own group, only from creditor_confirmed) or GLOBAL ADMIN (override: any non-settled step) -> settled. A debtor can NEVER finalize their own payment, even as admin. When the last payment settles, the group flips to fully settled (status 'settled', read-only)."
-          }
-        },
-        {
-          "name": "Reject (admin)",
-          "request": {
-            "method": "POST",
-            "header": [],
-            "url": {
-              "raw": "{{baseUrl}}/payments/:paymentId/reject",
-              "host": ["{{baseUrl}}"],
-              "path": ["payments", ":paymentId", "reject"],
-              "variable": [
-                { "key": "paymentId", "value": "{{paymentId}}", "description": "Payment UUID" }
-              ]
-            },
-            "description": "GROUP-ADMIN or GLOBAL ADMIN -> disputed (returns the payment to the debtor to re-submit proof)."
-          }
-        }
-      ]
-    },
-    {
-      "name": "Admin (global admin)",
-      "item": [
         {
           "name": "Approve user (verify)",
           "request": {
@@ -752,13 +363,24 @@
             "header": [],
             "url": {
               "raw": "{{baseUrl}}/admin/users/:userId/approve",
-              "host": ["{{baseUrl}}"],
-              "path": ["admin", "users", ":userId", "approve"],
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "admin",
+                "users",
+                ":userId",
+                "approve"
+              ],
               "variable": [
-                { "key": "userId", "value": "{{memberUserId}}", "description": "Target user UUID to verify" }
+                {
+                  "key": "userId",
+                  "value": "{{memberUserId}}",
+                  "description": "User UUID"
+                }
               ]
             },
-            "description": "Global admin marks a user verified. Requires the caller to be the global admin."
+            "description": "Global admin: pending_verification (or registered) -> verified."
           }
         },
         {
@@ -768,13 +390,1155 @@
             "header": [],
             "url": {
               "raw": "{{baseUrl}}/admin/users/:userId/reject",
-              "host": ["{{baseUrl}}"],
-              "path": ["admin", "users", ":userId", "reject"],
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "admin",
+                "users",
+                ":userId",
+                "reject"
+              ],
               "variable": [
-                { "key": "userId", "value": "{{memberUserId}}", "description": "Target user UUID to reject" }
+                {
+                  "key": "userId",
+                  "value": "{{memberUserId}}",
+                  "description": "User UUID"
+                }
               ]
             },
-            "description": "Global admin rejects a user's verification. Requires the caller to be the global admin."
+            "description": "Global admin: -> rejected."
+          }
+        },
+        {
+          "name": "Delete user",
+          "request": {
+            "method": "DELETE",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/admin/users/:userId",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "admin",
+                "users",
+                ":userId"
+              ],
+              "variable": [
+                {
+                  "key": "userId",
+                  "value": "{{memberUserId}}",
+                  "description": "User UUID"
+                }
+              ]
+            },
+            "description": "Global admin. Guards: not yourself, not the global admin, and 409 for anyone who belongs to groups (memberships anchor expenses/payments/audit). Audited as user.deleted."
+          }
+        }
+      ]
+    },
+    {
+      "name": "4. Admin — Groups",
+      "item": [
+        {
+          "name": "List all groups",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/admin/groups",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "admin",
+                "groups"
+              ]
+            },
+            "description": "Global admin: every group with status, member count and total spent."
+          }
+        },
+        {
+          "name": "Delete group",
+          "request": {
+            "method": "DELETE",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/admin/groups/:groupId",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "admin",
+                "groups",
+                ":groupId"
+              ],
+              "variable": [
+                {
+                  "key": "groupId",
+                  "value": "{{groupId}}",
+                  "description": "Group UUID"
+                }
+              ]
+            },
+            "description": "Global admin. Only pristine groups (no expenses, payments or audit history) can be deleted — everything else is immutable bookkeeping. Audited as group.deleted."
+          }
+        }
+      ]
+    },
+    {
+      "name": "5. Groups",
+      "item": [
+        {
+          "name": "List my groups",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/groups",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "groups"
+              ]
+            },
+            "description": "Groups the caller belongs to, with their role per group."
+          }
+        },
+        {
+          "name": "Create group (as verified user)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/groups",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "groups"
+              ]
+            },
+            "description": "The creator becomes group-admin. Do NOT send admin_user_id as a normal user. Stores {{groupId}} and {{inviteToken}}.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"Road Trip 2026\",\n  \"start_date\": \"2026-07-01T00:00:00Z\",\n  \"end_date\": \"2026-07-10T00:00:00Z\",\n  \"expected_member_count\": 4\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const j = pm.response.json();",
+                  "if (j && j.id) { pm.collectionVariables.set('groupId', j.id); console.log('groupId = ' + j.id); }",
+                  "if (j && j.invite_token) { pm.collectionVariables.set('inviteToken', j.invite_token); }",
+                  "pm.test('status is 201', () => pm.response.to.have.status(201));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Create group (as global admin — assign member)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/groups",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "groups"
+              ]
+            },
+            "description": "The global admin is not a trip member: they must assign a DIFFERENT verified user as group-admin via admin_user_id ({{memberUserId}} — register + approve one first).",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"Admin-Assigned Trip\",\n  \"start_date\": \"2026-07-01T00:00:00Z\",\n  \"end_date\": \"2026-07-10T00:00:00Z\",\n  \"admin_user_id\": \"{{memberUserId}}\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const j = pm.response.json();",
+                  "if (j && j.id) { pm.collectionVariables.set('groupId', j.id); console.log('groupId = ' + j.id); }",
+                  "if (j && j.invite_token) { pm.collectionVariables.set('inviteToken', j.invite_token); }",
+                  "pm.test('status is 201', () => pm.response.to.have.status(201));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Get group (details + members)",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/groups/:groupId",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "groups",
+                ":groupId"
+              ],
+              "variable": [
+                {
+                  "key": "groupId",
+                  "value": "{{groupId}}",
+                  "description": "Group UUID"
+                }
+              ]
+            },
+            "description": "Metadata + member list. Stores {{statusToken}} (the public share token)."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const j = pm.response.json();",
+                  "if (j && j.status_token) { pm.collectionVariables.set('statusToken', j.status_token); }",
+                  "pm.test('status is 200', () => pm.response.to.have.status(200));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Update group",
+          "request": {
+            "method": "PATCH",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/groups/:groupId",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "groups",
+                ":groupId"
+              ],
+              "variable": [
+                {
+                  "key": "groupId",
+                  "value": "{{groupId}}",
+                  "description": "Group UUID"
+                }
+              ]
+            },
+            "description": "Group-admin, open groups only. Replaces the editable metadata.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"Road Trip 2026 (renamed)\",\n  \"start_date\": \"2026-07-01T00:00:00Z\",\n  \"end_date\": \"2026-07-12T00:00:00Z\",\n  \"expected_member_count\": 5\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          }
+        },
+        {
+          "name": "Close group (freeze + settle)",
+          "request": {
+            "method": "POST",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/groups/:groupId/close",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "groups",
+                ":groupId",
+                "close"
+              ],
+              "variable": [
+                {
+                  "key": "groupId",
+                  "value": "{{groupId}}",
+                  "description": "Group UUID"
+                }
+              ]
+            },
+            "description": "Group-admin. Freezes expenses, computes the min-transfer plan, creates pending payments. A plan with zero transfers settles the group immediately."
+          }
+        }
+      ]
+    },
+    {
+      "name": "6. Membership",
+      "item": [
+        {
+          "name": "Join group (invite token)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/groups/join",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "groups",
+                "join"
+              ]
+            },
+            "description": "Verified user requests to join via the shareable invite token.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"invite_token\": \"{{inviteToken}}\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          }
+        },
+        {
+          "name": "List join requests",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/groups/:groupId/requests",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "groups",
+                ":groupId",
+                "requests"
+              ],
+              "variable": [
+                {
+                  "key": "groupId",
+                  "value": "{{groupId}}",
+                  "description": "Group UUID"
+                }
+              ]
+            },
+            "description": "Group-admin: pending requests. Stores {{memberUserId}} (first requester)."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const arr = pm.response.json();",
+                  "if (Array.isArray(arr) && arr.length && arr[0].user_id) { pm.collectionVariables.set('memberUserId', arr[0].user_id); }",
+                  "pm.test('status is 200', () => pm.response.to.have.status(200));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Approve member",
+          "request": {
+            "method": "POST",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/groups/:groupId/members/:userId/approve",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "groups",
+                ":groupId",
+                "members",
+                ":userId",
+                "approve"
+              ],
+              "variable": [
+                {
+                  "key": "groupId",
+                  "value": "{{groupId}}",
+                  "description": "Group UUID"
+                },
+                {
+                  "key": "userId",
+                  "value": "{{memberUserId}}",
+                  "description": "Target user UUID"
+                }
+              ]
+            },
+            "description": "Group-admin approves the join request."
+          }
+        },
+        {
+          "name": "Reject member",
+          "request": {
+            "method": "POST",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/groups/:groupId/members/:userId/reject",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "groups",
+                ":groupId",
+                "members",
+                ":userId",
+                "reject"
+              ],
+              "variable": [
+                {
+                  "key": "groupId",
+                  "value": "{{groupId}}",
+                  "description": "Group UUID"
+                },
+                {
+                  "key": "userId",
+                  "value": "{{memberUserId}}",
+                  "description": "Target user UUID"
+                }
+              ]
+            },
+            "description": "Group-admin rejects the join request."
+          }
+        },
+        {
+          "name": "Promote to admin (handoff)",
+          "request": {
+            "method": "POST",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/groups/:groupId/members/:userId/promote",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "groups",
+                ":groupId",
+                "members",
+                ":userId",
+                "promote"
+              ],
+              "variable": [
+                {
+                  "key": "groupId",
+                  "value": "{{groupId}}",
+                  "description": "Group UUID"
+                },
+                {
+                  "key": "userId",
+                  "value": "{{memberUserId}}",
+                  "description": "Target user UUID"
+                }
+              ]
+            },
+            "description": "Transfers the group-admin role (exactly one admin at all times; audited)."
+          }
+        },
+        {
+          "name": "Remove member / leave",
+          "request": {
+            "method": "DELETE",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/groups/:groupId/members/:userId",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "groups",
+                ":groupId",
+                "members",
+                ":userId"
+              ],
+              "variable": [
+                {
+                  "key": "groupId",
+                  "value": "{{groupId}}",
+                  "description": "Group UUID"
+                },
+                {
+                  "key": "userId",
+                  "value": "{{memberUserId}}",
+                  "description": "Target user UUID"
+                }
+              ]
+            },
+            "description": "Group-admin removes a member, or a member removes themself. 409 if they recorded expenses or appear in any expense split."
+          }
+        }
+      ]
+    },
+    {
+      "name": "7. Expenses",
+      "item": [
+        {
+          "name": "Record expense (equal split)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/groups/:groupId/expenses",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "groups",
+                ":groupId",
+                "expenses"
+              ],
+              "variable": [
+                {
+                  "key": "groupId",
+                  "value": "{{groupId}}",
+                  "description": "Group UUID"
+                }
+              ]
+            },
+            "description": "paid_by is always the caller. Categories: lodging, fuel, food, transport, other. occurred_on must be inside the trip dates. Stores {{expenseId}}.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"amount_baisa\": 15000,\n  \"category\": \"food\",\n  \"description\": \"dinner at the beach\",\n  \"occurred_on\": \"2026-07-03\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const j = pm.response.json();",
+                  "if (j && j.id) { pm.collectionVariables.set('expenseId', j.id); console.log('expenseId = ' + j.id); }",
+                  "pm.test('status is 201', () => pm.response.to.have.status(201));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Record expense (subset / weighted split)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/groups/:groupId/expenses",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "groups",
+                ":groupId",
+                "expenses"
+              ],
+              "variable": [
+                {
+                  "key": "groupId",
+                  "value": "{{groupId}}",
+                  "description": "Group UUID"
+                }
+              ]
+            },
+            "description": "Optional shares[] limits the split to named APPROVED members; weight scales their portion (weight 2 owes twice weight 1). Omit shares for an equal split.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"amount_baisa\": 9000,\n  \"category\": \"lodging\",\n  \"description\": \"single room\",\n  \"occurred_on\": \"2026-07-03\",\n  \"shares\": [\n    {\n      \"user_id\": \"{{userId}}\",\n      \"weight\": 2\n    },\n    {\n      \"user_id\": \"{{memberUserId}}\",\n      \"weight\": 1\n    }\n  ]\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const j = pm.response.json();",
+                  "if (j && j.id) { pm.collectionVariables.set('expenseId', j.id); console.log('expenseId = ' + j.id); }",
+                  "pm.test('status is 201', () => pm.response.to.have.status(201));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "List expenses (filters + search)",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/groups/:groupId/expenses",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "groups",
+                ":groupId",
+                "expenses"
+              ],
+              "variable": [
+                {
+                  "key": "groupId",
+                  "value": "{{groupId}}",
+                  "description": "Group UUID"
+                }
+              ],
+              "query": [
+                {
+                  "key": "category",
+                  "value": "food",
+                  "description": "lodging|fuel|food|transport|other",
+                  "disabled": true
+                },
+                {
+                  "key": "paid_by",
+                  "value": "{{userId}}",
+                  "description": "Filter by payer user id",
+                  "disabled": true
+                },
+                {
+                  "key": "q",
+                  "value": "dinner",
+                  "description": "Search in description",
+                  "disabled": true
+                }
+              ]
+            },
+            "description": "Descriptions longer than 80 chars are truncated on a word boundary. Enable params to filter."
+          }
+        },
+        {
+          "name": "Update expense",
+          "request": {
+            "method": "PATCH",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/groups/:groupId/expenses/:expenseId",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "groups",
+                ":groupId",
+                "expenses",
+                ":expenseId"
+              ],
+              "variable": [
+                {
+                  "key": "groupId",
+                  "value": "{{groupId}}",
+                  "description": "Group UUID"
+                },
+                {
+                  "key": "expenseId",
+                  "value": "{{expenseId}}",
+                  "description": "Expense UUID"
+                }
+              ]
+            },
+            "description": "Own expense, open group. An amount change is audited with before/after. Shares are immutable.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"amount_baisa\": 18000,\n  \"category\": \"food\",\n  \"description\": \"dinner at the beach (corrected)\",\n  \"occurred_on\": \"2026-07-03\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          }
+        },
+        {
+          "name": "Delete expense",
+          "request": {
+            "method": "DELETE",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/groups/:groupId/expenses/:expenseId",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "groups",
+                ":groupId",
+                "expenses",
+                ":expenseId"
+              ],
+              "variable": [
+                {
+                  "key": "groupId",
+                  "value": "{{groupId}}",
+                  "description": "Group UUID"
+                },
+                {
+                  "key": "expenseId",
+                  "value": "{{expenseId}}",
+                  "description": "Expense UUID"
+                }
+              ]
+            },
+            "description": "Soft-deletes your own expense while the group is open. Audited."
+          }
+        }
+      ]
+    },
+    {
+      "name": "8. Settlement",
+      "item": [
+        {
+          "name": "Group summary",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/groups/:groupId/summary",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "groups",
+                ":groupId",
+                "summary"
+              ],
+              "variable": [
+                {
+                  "key": "groupId",
+                  "value": "{{groupId}}",
+                  "description": "Group UUID"
+                }
+              ]
+            },
+            "description": "Totals, spend per category, and per member paid / fair share / net. Works open or closed; weighted splits are reflected."
+          }
+        },
+        {
+          "name": "Settlement plan",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/groups/:groupId/settlement",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "groups",
+                ":groupId",
+                "settlement"
+              ],
+              "variable": [
+                {
+                  "key": "groupId",
+                  "value": "{{groupId}}",
+                  "description": "Group UUID"
+                }
+              ]
+            },
+            "description": "The who-pays-whom plan for a closed group, with per-payment status and the aggregate (settled_count of total_count). Stores {{paymentId}}."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const j = pm.response.json();",
+                  "if (j && j.payments && j.payments.length) { pm.collectionVariables.set('paymentId', j.payments[0].id); console.log(j.settled_count + ' of ' + j.total_count + ' settled'); }",
+                  "pm.test('status is 200', () => pm.response.to.have.status(200));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Settlement report (PDF)",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/groups/:groupId/report.pdf",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "groups",
+                ":groupId",
+                "report.pdf"
+              ],
+              "variable": [
+                {
+                  "key": "groupId",
+                  "value": "{{groupId}}",
+                  "description": "Group UUID"
+                }
+              ]
+            },
+            "description": "PDF for a FULLY-settled group: balances, expenses, plan with who confirmed/finalized. Use 'Send and Download' to save it. 409 before fully settled."
+          }
+        }
+      ]
+    },
+    {
+      "name": "9. Payments & Proofs (two-key)",
+      "item": [
+        {
+          "name": "Submit proof — text note (debtor)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/payments/:paymentId/proof",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "payments",
+                ":paymentId",
+                "proof"
+              ],
+              "variable": [
+                {
+                  "key": "paymentId",
+                  "value": "{{paymentId}}",
+                  "description": "Payment UUID (from Get settlement plan)"
+                }
+              ]
+            },
+            "description": "DEBTOR only: pending|disputed -> proof_submitted. Log in as the payment's from-user.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"note\": \"paid 5000 baisa cash on day 3\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          }
+        },
+        {
+          "name": "Submit proof — image (debtor)",
+          "request": {
+            "method": "POST",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/payments/:paymentId/proof",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "payments",
+                ":paymentId",
+                "proof"
+              ],
+              "variable": [
+                {
+                  "key": "paymentId",
+                  "value": "{{paymentId}}",
+                  "description": "Payment UUID (from Get settlement plan)"
+                }
+              ]
+            },
+            "description": "DEBTOR only, multipart upload. The file must be a REAL image (magic-byte check: jpeg/png/gif/webp, max 5 MiB) — renamed binaries are rejected. sha256 + size stored; bytes go to MinIO. Pick a file in the Body tab before sending.",
+            "body": {
+              "mode": "formdata",
+              "formdata": [
+                {
+                  "key": "image",
+                  "type": "file",
+                  "src": ""
+                }
+              ]
+            }
+          }
+        },
+        {
+          "name": "Get proof metadata",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/payments/:paymentId/proof",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "payments",
+                ":paymentId",
+                "proof"
+              ],
+              "variable": [
+                {
+                  "key": "paymentId",
+                  "value": "{{paymentId}}",
+                  "description": "Payment UUID (from Get settlement plan)"
+                }
+              ]
+            },
+            "description": "Current proof: type, size, sha256, note (for text proofs). Payment parties + admins only."
+          }
+        },
+        {
+          "name": "Get proof image (bytes)",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/payments/:paymentId/proof/image",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "payments",
+                ":paymentId",
+                "proof",
+                "image"
+              ],
+              "variable": [
+                {
+                  "key": "paymentId",
+                  "value": "{{paymentId}}",
+                  "description": "Payment UUID (from Get settlement plan)"
+                }
+              ]
+            },
+            "description": "The stored image itself. 409 when the proof is a text note."
+          }
+        },
+        {
+          "name": "Confirm receipt (creditor)",
+          "request": {
+            "method": "POST",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/payments/:paymentId/confirm",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "payments",
+                ":paymentId",
+                "confirm"
+              ],
+              "variable": [
+                {
+                  "key": "paymentId",
+                  "value": "{{paymentId}}",
+                  "description": "Payment UUID (from Get settlement plan)"
+                }
+              ]
+            },
+            "description": "CREDITOR only: proof_submitted -> creditor_confirmed."
+          }
+        },
+        {
+          "name": "Dispute (creditor)",
+          "request": {
+            "method": "POST",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/payments/:paymentId/dispute",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "payments",
+                ":paymentId",
+                "dispute"
+              ],
+              "variable": [
+                {
+                  "key": "paymentId",
+                  "value": "{{paymentId}}",
+                  "description": "Payment UUID (from Get settlement plan)"
+                }
+              ]
+            },
+            "description": "CREDITOR only: 'I did not receive this' -> disputed (debtor re-submits proof)."
+          }
+        },
+        {
+          "name": "Finalize (admin)",
+          "request": {
+            "method": "POST",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/payments/:paymentId/finalize",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "payments",
+                ":paymentId",
+                "finalize"
+              ],
+              "variable": [
+                {
+                  "key": "paymentId",
+                  "value": "{{paymentId}}",
+                  "description": "Payment UUID (from Get settlement plan)"
+                }
+              ]
+            },
+            "description": "GROUP-ADMIN (from creditor_confirmed only) or GLOBAL ADMIN (override, any non-settled step) -> settled. A debtor can NEVER finalize their own payment. Last settle flips the group to fully settled."
+          }
+        },
+        {
+          "name": "Reject (admin)",
+          "request": {
+            "method": "POST",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/payments/:paymentId/reject",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "payments",
+                ":paymentId",
+                "reject"
+              ],
+              "variable": [
+                {
+                  "key": "paymentId",
+                  "value": "{{paymentId}}",
+                  "description": "Payment UUID (from Get settlement plan)"
+                }
+              ]
+            },
+            "description": "GROUP-ADMIN or GLOBAL ADMIN -> disputed (back to the debtor)."
+          }
+        }
+      ]
+    },
+    {
+      "name": "10. Ops (audit + nudges)",
+      "item": [
+        {
+          "name": "Audit log",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/groups/:groupId/audit",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "groups",
+                ":groupId",
+                "audit"
+              ],
+              "variable": [
+                {
+                  "key": "groupId",
+                  "value": "{{groupId}}",
+                  "description": "Group UUID"
+                }
+              ]
+            },
+            "description": "Group-admin/global-admin: full trail — who, what, before/after, when."
+          }
+        },
+        {
+          "name": "Run nudges",
+          "request": {
+            "method": "POST",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/groups/:groupId/nudges?hours=24",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "groups",
+                ":groupId",
+                "nudges"
+              ],
+              "variable": [
+                {
+                  "key": "groupId",
+                  "value": "{{groupId}}",
+                  "description": "Group UUID"
+                }
+              ],
+              "query": [
+                {
+                  "key": "hours",
+                  "value": "24",
+                  "description": "Staleness threshold, 0-720 (default 24)",
+                  "disabled": false
+                }
+              ]
+            },
+            "description": "Group-admin: reminds debtors on stale pending payments and creditors on stale proof_submitted ones. Idempotent — re-running inside the threshold sends nothing."
           }
         }
       ]
