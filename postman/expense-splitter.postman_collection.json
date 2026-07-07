@@ -375,6 +375,38 @@
           }
         },
         {
+          "name": "Get settlement report PDF",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/groups/:groupId/report.pdf",
+              "host": ["{{baseUrl}}"],
+              "path": ["groups", ":groupId", "report.pdf"],
+              "variable": [
+                { "key": "groupId", "value": "{{groupId}}", "description": "Group UUID" }
+              ]
+            },
+            "description": "PDF report for a FULLY-SETTLED group (409 before that): trip details, per-member balances, expenses, payment plan with who confirmed/finalized. Use Postman's 'Send and Download' to save the file."
+          }
+        },
+        {
+          "name": "Get audit log (admin)",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/groups/:groupId/audit",
+              "host": ["{{baseUrl}}"],
+              "path": ["groups", ":groupId", "audit"],
+              "variable": [
+                { "key": "groupId", "value": "{{groupId}}", "description": "Group UUID" }
+              ]
+            },
+            "description": "Group-admin/global-admin: the group's full audit trail (who, what, before/after, when) — expenses, close, membership decisions, handoff, proof/confirm/finalize/override events."
+          }
+        },
+        {
           "name": "Public group status (no auth)",
           "request": {
             "auth": { "type": "noauth" },
@@ -594,6 +626,28 @@
               ]
             },
             "description": "Edit your own expense while the group is open. An amount change is written to the audit log (before/after)."
+          }
+        }
+      ]
+    },
+    {
+      "name": "Expenses (delete)",
+      "item": [
+        {
+          "name": "Delete expense",
+          "request": {
+            "method": "DELETE",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/groups/:groupId/expenses/:expenseId",
+              "host": ["{{baseUrl}}"],
+              "path": ["groups", ":groupId", "expenses", ":expenseId"],
+              "variable": [
+                { "key": "groupId", "value": "{{groupId}}", "description": "Group UUID" },
+                { "key": "expenseId", "value": "{{expenseId}}", "description": "Expense UUID" }
+              ]
+            },
+            "description": "Soft-delete your OWN expense while the group is open. Audited with the before amount."
           }
         }
       ]

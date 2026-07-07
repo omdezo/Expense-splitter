@@ -9,18 +9,60 @@ delegated to **Keycloak** (the server only validates tokens); authorization
 ```
 .
 ├── docker-compose.yml
+├── postman/                # importable Postman collection for every endpoint
 ├── keycloak/
-│   └── realm-export.json   # auto-imported realm: client + seed users
+│   ├── Dockerfile          # stock Keycloak + custom theme baked in
+│   ├── realm-export.json   # auto-imported realm: client + seed users
+│   └── themes/             # login/account/email theme (en + ar)
 └── server/
     ├── main.go
-    ├── go.mod
     ├── Dockerfile
+    ├── cmd/          # cobra: serve, seed
     ├── config/       # env config (incl. Keycloak)
-    ├── database/     # postgres connection (pgx)
-    ├── handler/      # health + /me handlers
+    ├── database/
+    │   ├── migration/schema/   # goose migrations (run at startup)
+    │   ├── queries/            # ALL SQL lives here (sqlc input)
+    │   ├── repo/               # sqlc-generated typed queries (do not edit)
+    │   └── seeding/            # default global admin seeder
+    ├── keycloak/     # server-side Keycloak client (login + admin user create)
+    ├── handler/      # thin HTTP handlers
     ├── middleware/   # Keycloak JWT auth middleware
-    └── router/       # echo routes
+    ├── router/       # echo routes
+    ├── services/     # business logic, authorization, settlement math
+    └── types/        # shared domain types, API errors
 ```
+
+## API
+
+Public (no token): `POST /auth/register`, `POST /auth/login`,
+`GET /public/groups/:token` (share-token status), `GET /health`.
+Everything else requires `Authorization: Bearer <token>` from `/auth/login`.
+
+| Area | Endpoints |
+|---|---|
+| Account | `GET /me` · `POST /register` (link token→local row) · `POST /verification` |
+| Admin | `POST /admin/users/:id/approve` · `POST /admin/users/:id/reject` |
+| Groups | `GET /groups` · `POST /groups` · `GET /groups/:id` · `PATCH /groups/:id` · `POST /groups/:id/close` |
+| Membership | `POST /groups/join` · `GET /groups/:id/requests` · `POST /groups/:id/members/:userId/approve\|reject\|promote` · `DELETE /groups/:id/members/:userId` |
+| Expenses | `POST /groups/:id/expenses` · `GET /groups/:id/expenses?category=&paid_by=&q=` · `PATCH /groups/:id/expenses/:expenseId` · `DELETE /groups/:id/expenses/:expenseId` |
+| Settlement | `GET /groups/:id/summary` · `GET /groups/:id/settlement` (plan + "N of M settled") · `GET /groups/:id/report.pdf` (fully-settled only) |
+| Payments (two-key) | `POST /payments/:id/proof` (debtor) · `/confirm` `/dispute` (creditor) · `/finalize` `/reject` (admin) |
+| Audit | `GET /groups/:id/audit` (group-admin/global-admin) |
+
+The `postman/` collection covers all of these with auto-chained variables —
+run **Login** first, then top to bottom.
+
+## Testing
+
+```bash
+make test          # all unit tests (settlement math, truncation, authz, tamper suite)
+make test-pkg PKG=./services RUN='TestTamper'   # a specific area, verbose
+```
+
+Unit tests are co-located with the code; the settlement algorithm, the
+80-char truncation rule, the authorization matrix, and the tamper-resistance
+claims are all covered. For end-to-end verification use the Postman
+collection or `make kc-token` + curl against the running stack.
 
 ## Run
 
@@ -214,3 +256,31 @@ see the Arabic/RTL version.
 > Changing `loginTheme`/seed users/clients in `realm-export.json` only takes
 > effect on a **fresh** realm import. To re-import, reset Keycloak's DB volume:
 > `docker compose rm -sf keycloak keycloak-db && docker volume rm expense-splitter_keycloak_pgdata && docker compose up --build -d keycloak`
+
+## Deployment
+
+The whole stack is one `docker compose up --build -d` on any Docker host
+(a VM on DigitalOcean/Hetzner/EC2, etc.):
+
+```bash
+git clone https://github.com/omdezo/Expense-splitter && cd Expense-splitter
+docker compose up --build -d
+docker compose exec server ./server seed     # create the default global admin
+```
+
+Before exposing it publicly, change the dev defaults in `docker-compose.yml`:
+
+1. **Secrets** — replace every `admin`/`postgres`/`keycloak` password
+   (`KC_BOOTSTRAP_ADMIN_PASSWORD`, `KEYCLOAK_ADMIN_PASSWORD`, both Postgres
+   credentials) with real values, ideally via an `.env` file.
+2. **Keycloak in prod mode** — swap `start-dev --import-realm` for
+   `start --import-realm` with `KC_HOSTNAME=<your-domain>` and TLS in front
+   (Keycloak refuses plain-HTTP admin access in prod mode).
+3. **Issuers** — set `KEYCLOAK_ISSUERS` to the public URL tokens will be
+   minted from (replacing `http://localhost:8081/...`).
+4. **Ports** — keep Postgres unpublished (drop the `5433` mapping) and put the
+   API + Keycloak behind a reverse proxy with TLS.
+
+Data lives in the named volumes `pgdata` (app) and `keycloak_pgdata`
+(identity); after a volume wipe, re-run the seed and have the admin call
+`POST /register` once to re-link their Keycloak identity.
