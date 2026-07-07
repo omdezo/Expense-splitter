@@ -99,6 +99,33 @@ single-debtor example hides.
 make test-pkg PKG=./services RUN='TestFairShares|TestComputePlan'   # see it run
 ```
 
+## Tamper resistance (bonus 1)
+
+Every payment-state transition funnels through one pure function,
+`validatePaymentTransition` (`server/services/payments.go`), and
+`server/services/tamper_test.go` proves the three integrity claims by
+**enumerating the full (role-combination × action × status) space**, not just
+happy paths:
+
+1. **No path lets a debtor mark their own payment settled** — including a
+   debtor who is also the group-admin (`TestTamperClaim1DebtorCannotSelfSettle`).
+2. **Settled requires both keys**: the only transition producing `settled` is
+   an admin's finalize from `creditor_confirmed`, and the only transition
+   producing `creditor_confirmed` is the creditor's confirm from
+   `proof_submitted` (`TestTamperClaim2TwoKeysRequired`).
+3. **A disputed payment cannot be reported settled** — it is only resolvable by
+   the debtor re-submitting proof and both keys running again
+   (`TestTamperClaim3DisputedNeverSettled`).
+
+The one sanctioned exception — the global admin's override (req #15) — is
+pinned by `TestTamperGlobalOverrideIsBounded`: they may finalize or reject any
+non-settled payment, and can do **nothing else** (no debtor/creditor keys, and
+`settled` stays terminal even for them).
+
+```bash
+make test-pkg PKG=./services RUN='TestTamper'
+```
+
 ## Concurrency & locking strategy
 
 The dangerous window is settlement: it must be computed **exactly once over a
