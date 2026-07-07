@@ -1347,7 +1347,7 @@
                 }
               ]
             },
-            "description": "The who-pays-whom plan for a closed group, with per-payment status and the aggregate (settled_count of total_count). Stores {{paymentId}}."
+            "description": "The who-pays-whom plan for a closed group: per-payment status, the aggregate (settled_count of total_count), and the settlement snapshot (total spent, member count, each member's paid / fair share / net). An empty plan carries a note explaining why (e.g. single member, or all nets zero). Stores {{paymentId}}."
           },
           "event": [
             {

@@ -22,9 +22,14 @@ type PaymentView struct {
 }
 
 type SettlementPlanResponse struct {
-	GroupID      string        `json:"group_id"`
-	GroupStatus  GroupStatus   `json:"group_status"`
-	SettledCount int           `json:"settled_count"`
-	TotalCount   int           `json:"total_count"`
-	Payments     []PaymentView `json:"payments"`
+	GroupID      string      `json:"group_id"`
+	GroupStatus  GroupStatus `json:"group_status"`
+	SettledCount int         `json:"settled_count"`
+	TotalCount   int         `json:"total_count"`
+	// Note explains an empty plan (e.g. every net balance was already zero).
+	Note     string        `json:"note,omitempty"`
+	Payments []PaymentView `json:"payments"`
+	// Snapshot is the state settlement was computed over: total spent, member
+	// count, and each member's paid / fair share / net.
+	Snapshot *SettlementSnapshot `json:"snapshot,omitempty"`
 }

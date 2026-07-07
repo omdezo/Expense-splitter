@@ -51,3 +51,14 @@ func (q *Queries) CreateSettlementRun(ctx context.Context, arg CreateSettlementR
 	err := row.Scan(&id)
 	return id, err
 }
+
+const getSettlementSnapshot = `-- name: GetSettlementSnapshot :one
+SELECT snapshot FROM settlement_runs WHERE group_id = $1::uuid
+`
+
+func (q *Queries) GetSettlementSnapshot(ctx context.Context, groupID string) ([]byte, error) {
+	row := q.db.QueryRow(ctx, getSettlementSnapshot, groupID)
+	var snapshot []byte
+	err := row.Scan(&snapshot)
+	return snapshot, err
+}

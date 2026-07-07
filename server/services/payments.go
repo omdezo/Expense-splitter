@@ -4,6 +4,7 @@ import (
 	"context"
 	"crypto/sha256"
 	"encoding/hex"
+	"encoding/json"
 	"errors"
 
 	"github.com/jackc/pgx/v5"
@@ -61,6 +62,32 @@ func (s *Services) GetSettlementPlan(ctx context.Context, id types.Identity, gro
 			Status:      r.Status,
 			CreatedAt:   r.CreatedAt,
 		})
+	}
+
+	// Attach the snapshot settlement was computed over, so the response
+	// explains itself — especially when the plan is empty.
+	raw, err := s.q.GetSettlementSnapshot(ctx, groupID)
+	switch {
+	case errors.Is(err, pgx.ErrNoRows):
+		// closed-but-unsettled groups always have a run; tolerate absence.
+	case err != nil:
+		s.logger.Errorw("settlement plan: load snapshot", "error", err)
+		return nil, types.NewServerError()
+	default:
+		var snap types.SettlementSnapshot
+		if err := json.Unmarshal(raw, &snap); err != nil {
+			s.logger.Errorw("settlement plan: decode snapshot", "error", err)
+		} else {
+			resp.Snapshot = &snap
+		}
+	}
+
+	if resp.TotalCount == 0 {
+		if resp.Snapshot != nil && resp.Snapshot.MemberCount <= 1 {
+			resp.Note = "no transfers were needed: the group had a single member, so their fair share equals what they paid"
+		} else {
+			resp.Note = "no transfers were needed: every member's net balance was already zero at close"
+		}
 	}
 	return resp, nil
 }
