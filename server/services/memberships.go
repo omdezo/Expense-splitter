@@ -75,26 +75,55 @@ func (s *Services) setMemberStatus(ctx context.Context, id types.Identity, group
 		return nil, apiErr
 	}
 
-	row, err := s.q.DecideJoinRequest(ctx, repo.DecideJoinRequestParams{
+	tx, err := s.db.Begin(ctx)
+	if err != nil {
+		s.logger.Errorw("decide member: begin tx", "error", err)
+		return nil, types.NewServerError()
+	}
+	defer tx.Rollback(ctx)
+	qtx := s.q.WithTx(tx)
+
+	row, err := qtx.DecideJoinRequest(ctx, repo.DecideJoinRequestParams{
 		Status:  decision,
 		GroupID: groupID,
 		UserID:  targetUserID,
 	})
 	switch {
-	case err == nil:
-		return &types.MembershipView{
-			GroupID:   groupID,
-			UserID:    targetUserID,
-			Role:      row.Role,
-			Status:    row.Status,
-			CreatedAt: row.CreatedAt,
-		}, nil
 	case errors.Is(err, pgx.ErrNoRows):
 		return nil, types.NewNotFoundError("no pending join request for this user")
-	default:
+	case err != nil:
 		s.logger.Errorw("decide member: update", "error", err)
 		return nil, types.NewServerError()
 	}
+
+	if err := s.writeAudit(ctx, qtx, auditEntry{
+		GroupID:     groupID,
+		ActorUserID: caller.UserID,
+		Action:      "membership." + string(decision),
+		Before:      membershipAudit{UserID: targetUserID, Status: types.MembershipRequested},
+		After:       membershipAudit{UserID: targetUserID, Status: decision},
+	}); err != nil {
+		s.logger.Errorw("decide member: write audit", "error", err)
+		return nil, types.NewServerError()
+	}
+
+	if err := tx.Commit(ctx); err != nil {
+		s.logger.Errorw("decide member: commit", "error", err)
+		return nil, types.NewServerError()
+	}
+
+	return &types.MembershipView{
+		GroupID:   groupID,
+		UserID:    targetUserID,
+		Role:      row.Role,
+		Status:    row.Status,
+		CreatedAt: row.CreatedAt,
+	}, nil
+}
+
+type membershipAudit struct {
+	UserID string                 `json:"user_id"`
+	Status types.MembershipStatus `json:"status"`
 }
 
 func (s *Services) ListJoinRequests(ctx context.Context, id types.Identity, groupID string) ([]types.MembershipView, types.APIError) {
@@ -168,7 +197,8 @@ func (s *Services) TransferAdmin(ctx context.Context, id types.Identity, groupID
 
 	// Demote the current admin FIRST: the one_group_admin_per_group index forbids
 	// two admins, so promoting before demoting would violate it.
-	if err := qtx.DemoteGroupAdmin(ctx, groupID); err != nil {
+	oldAdminID, err := qtx.DemoteGroupAdmin(ctx, groupID)
+	if err != nil {
 		s.logger.Errorw("transfer admin: demote", "error", err)
 		return nil, types.NewServerError()
 	}
@@ -176,6 +206,17 @@ func (s *Services) TransferAdmin(ctx context.Context, id types.Identity, groupID
 	promoted, err := qtx.PromoteToGroupAdmin(ctx, repo.PromoteToGroupAdminParams{GroupID: groupID, UserID: newAdminID})
 	if err != nil {
 		s.logger.Errorw("transfer admin: promote", "error", err)
+		return nil, types.NewServerError()
+	}
+
+	if err := s.writeAudit(ctx, qtx, auditEntry{
+		GroupID:     groupID,
+		ActorUserID: caller.UserID,
+		Action:      "group.admin_transferred",
+		Before:      map[string]string{"group_admin": oldAdminID},
+		After:       map[string]string{"group_admin": newAdminID},
+	}); err != nil {
+		s.logger.Errorw("transfer admin: write audit", "error", err)
 		return nil, types.NewServerError()
 	}
 

@@ -134,6 +134,17 @@ func (q *Queries) LockExpenseForUpdate(ctx context.Context, arg LockExpenseForUp
 	return i, err
 }
 
+const softDeleteExpense = `-- name: SoftDeleteExpense :exec
+UPDATE expenses
+SET deleted_at = now(), updated_at = now()
+WHERE id = $1::uuid
+`
+
+func (q *Queries) SoftDeleteExpense(ctx context.Context, id string) error {
+	_, err := q.db.Exec(ctx, softDeleteExpense, id)
+	return err
+}
+
 const sumPaidByMember = `-- name: SumPaidByMember :many
 SELECT paid_by, SUM(amount_baisa)::bigint AS total
 FROM expenses

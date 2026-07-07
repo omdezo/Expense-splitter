@@ -87,15 +87,18 @@ func (q *Queries) DeleteMembership(ctx context.Context, id string) error {
 	return err
 }
 
-const demoteGroupAdmin = `-- name: DemoteGroupAdmin :exec
+const demoteGroupAdmin = `-- name: DemoteGroupAdmin :one
 UPDATE memberships
 SET role = 'member', updated_at = now()
 WHERE group_id = $1::uuid AND role = 'group_admin'
+RETURNING user_id
 `
 
-func (q *Queries) DemoteGroupAdmin(ctx context.Context, groupID string) error {
-	_, err := q.db.Exec(ctx, demoteGroupAdmin, groupID)
-	return err
+func (q *Queries) DemoteGroupAdmin(ctx context.Context, groupID string) (string, error) {
+	row := q.db.QueryRow(ctx, demoteGroupAdmin, groupID)
+	var user_id string
+	err := row.Scan(&user_id)
+	return user_id, err
 }
 
 const getMembership = `-- name: GetMembership :one

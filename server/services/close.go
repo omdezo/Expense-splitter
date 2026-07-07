@@ -132,6 +132,17 @@ func (s *Services) CloseGroup(ctx context.Context, id types.Identity, groupID st
 		}
 	}
 
+	if err := s.writeAudit(ctx, qtx, auditEntry{
+		GroupID:     groupID,
+		ActorUserID: caller.UserID,
+		Action:      "group.closed",
+		Before:      map[string]any{"status": types.GroupOpen},
+		After:       map[string]any{"status": types.GroupClosed, "total_spent": total, "transfers": len(plan)},
+	}); err != nil {
+		s.logger.Errorw("close: write audit", "error", err)
+		return nil, types.NewServerError()
+	}
+
 	if err := tx.Commit(ctx); err != nil {
 		s.logger.Errorw("close: commit", "error", err)
 		return nil, types.NewServerError()

@@ -244,6 +244,17 @@ func (q *Queries) LockGroupForExpense(ctx context.Context, arg LockGroupForExpen
 	return i, err
 }
 
+const lockGroupStatus = `-- name: LockGroupStatus :one
+SELECT status FROM groups WHERE id = $1::uuid FOR SHARE
+`
+
+func (q *Queries) LockGroupStatus(ctx context.Context, id string) (types.GroupStatus, error) {
+	row := q.db.QueryRow(ctx, lockGroupStatus, id)
+	var status types.GroupStatus
+	err := row.Scan(&status)
+	return status, err
+}
+
 const markGroupClosed = `-- name: MarkGroupClosed :exec
 UPDATE groups SET status = 'closed', updated_at = now() WHERE id = $1::uuid
 `

@@ -29,6 +29,11 @@ SET amount_baisa = @amount_baisa, category = @category, description = @descripti
 WHERE id = @id::uuid
 RETURNING created_at;
 
+-- name: SoftDeleteExpense :exec
+UPDATE expenses
+SET deleted_at = now(), updated_at = now()
+WHERE id = @id::uuid;
+
 -- name: SumPaidByMember :many
 SELECT paid_by, SUM(amount_baisa)::bigint AS total
 FROM expenses

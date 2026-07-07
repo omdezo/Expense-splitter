@@ -33,10 +33,11 @@ JOIN users u ON u.id = m.user_id
 WHERE m.group_id = @group_id::uuid
 ORDER BY m.role, m.created_at;
 
--- name: DemoteGroupAdmin :exec
+-- name: DemoteGroupAdmin :one
 UPDATE memberships
 SET role = 'member', updated_at = now()
-WHERE group_id = @group_id::uuid AND role = 'group_admin';
+WHERE group_id = @group_id::uuid AND role = 'group_admin'
+RETURNING user_id;
 
 -- name: PromoteToGroupAdmin :one
 UPDATE memberships

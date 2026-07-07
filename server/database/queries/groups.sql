@@ -33,6 +33,9 @@ ORDER BY g.created_at DESC;
 -- name: LockGroup :one
 SELECT status FROM groups WHERE id = @id::uuid FOR UPDATE;
 
+-- name: LockGroupStatus :one
+SELECT status FROM groups WHERE id = @id::uuid FOR SHARE;
+
 -- name: LockGroupForExpense :one
 SELECT status, (@occurred_on::date BETWEEN start_date::date AND end_date::date)::bool AS in_range
 FROM groups

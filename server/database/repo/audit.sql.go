@@ -7,6 +7,7 @@ package repo
 
 import (
 	"context"
+	"time"
 )
 
 const createAuditEntry = `-- name: CreateAuditEntry :exec
@@ -31,4 +32,47 @@ func (q *Queries) CreateAuditEntry(ctx context.Context, arg CreateAuditEntryPara
 		arg.After,
 	)
 	return err
+}
+
+const listAuditEntries = `-- name: ListAuditEntries :many
+SELECT id, actor_user_id, action, before, after, created_at
+FROM audit_log
+WHERE group_id = $1::uuid
+ORDER BY id
+`
+
+type ListAuditEntriesRow struct {
+	ID          int64     `json:"id"`
+	ActorUserID *string   `json:"actor_user_id"`
+	Action      string    `json:"action"`
+	Before      []byte    `json:"before"`
+	After       []byte    `json:"after"`
+	CreatedAt   time.Time `json:"created_at"`
+}
+
+func (q *Queries) ListAuditEntries(ctx context.Context, groupID string) ([]ListAuditEntriesRow, error) {
+	rows, err := q.db.Query(ctx, listAuditEntries, groupID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []ListAuditEntriesRow
+	for rows.Next() {
+		var i ListAuditEntriesRow
+		if err := rows.Scan(
+			&i.ID,
+			&i.ActorUserID,
+			&i.Action,
+			&i.Before,
+			&i.After,
+			&i.CreatedAt,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
 }

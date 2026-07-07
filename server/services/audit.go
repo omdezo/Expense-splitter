@@ -3,8 +3,12 @@ package services
 import (
 	"context"
 	"encoding/json"
+	"errors"
+
+	"github.com/jackc/pgx/v5"
 
 	"expense-splitter/database/repo"
+	"expense-splitter/types"
 )
 
 const ActionExpenseAmountChanged = "expense.amount_changed"
@@ -42,4 +46,38 @@ func jsonbArg(v any) ([]byte, error) {
 		return nil, nil
 	}
 	return json.Marshal(v)
+}
+
+// ListGroupAudit is the admin read API for a group's audit trail (req #16).
+func (s *Services) ListGroupAudit(ctx context.Context, id types.Identity, groupID string) ([]types.AuditEntryView, types.APIError) {
+	caller, err := s.principalByKeycloakID(ctx, id.Subject)
+	switch {
+	case errors.Is(err, pgx.ErrNoRows):
+		return nil, types.NewForbiddenError("account not registered")
+	case err != nil:
+		s.logger.Errorw("audit list: resolve caller", "error", err)
+		return nil, types.NewServerError()
+	}
+	if apiErr := s.authz.RequireGroupRole(ctx, caller, groupID, types.RoleGroupAdmin); apiErr != nil {
+		return nil, apiErr
+	}
+
+	rows, err := s.q.ListAuditEntries(ctx, groupID)
+	if err != nil {
+		s.logger.Errorw("audit list: query", "error", err)
+		return nil, types.NewServerError()
+	}
+
+	out := make([]types.AuditEntryView, 0, len(rows))
+	for _, r := range rows {
+		out = append(out, types.AuditEntryView{
+			ID:          r.ID,
+			ActorUserID: r.ActorUserID,
+			Action:      r.Action,
+			Before:      r.Before,
+			After:       r.After,
+			CreatedAt:   r.CreatedAt,
+		})
+	}
+	return out, nil
 }

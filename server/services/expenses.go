@@ -107,6 +107,16 @@ func (s *Services) RecordExpense(ctx context.Context, id types.Identity, groupID
 		return nil, types.NewServerError()
 	}
 
+	if err := s.writeAudit(ctx, qtx, auditEntry{
+		GroupID:     groupID,
+		ActorUserID: caller.UserID,
+		Action:      "expense.created",
+		After:       expenseAudit{ExpenseID: created.ID, AmountBaisa: req.AmountBaisa, Category: req.Category, OccurredOn: req.OccurredOn},
+	}); err != nil {
+		s.logger.Errorw("record expense: write audit", "error", err)
+		return nil, types.NewServerError()
+	}
+
 	if err := tx.Commit(ctx); err != nil {
 		s.logger.Errorw("record expense: commit", "error", err)
 		return nil, types.NewServerError()
@@ -173,6 +183,79 @@ func (s *Services) ListExpenses(ctx context.Context, id types.Identity, groupID 
 
 type expenseAmountAudit struct {
 	AmountBaisa int64 `json:"amount_baisa"`
+}
+
+type expenseAudit struct {
+	ExpenseID   string                `json:"expense_id"`
+	AmountBaisa int64                 `json:"amount_baisa"`
+	Category    types.ExpenseCategory `json:"category,omitempty"`
+	OccurredOn  string                `json:"occurred_on,omitempty"`
+}
+
+// DeleteExpense soft-deletes the caller's own expense while the group is open
+// (req #3 member rights); the deletion is written to the audit log (req #16).
+func (s *Services) DeleteExpense(ctx context.Context, id types.Identity, groupID, expenseID string) types.APIError {
+	caller, err := s.principalByKeycloakID(ctx, id.Subject)
+	switch {
+	case errors.Is(err, pgx.ErrNoRows):
+		return types.NewForbiddenError("account not registered")
+	case err != nil:
+		s.logger.Errorw("delete expense: resolve caller", "error", err)
+		return types.NewServerError()
+	}
+
+	tx, err := s.db.Begin(ctx)
+	if err != nil {
+		s.logger.Errorw("delete expense: begin tx", "error", err)
+		return types.NewServerError()
+	}
+	defer tx.Rollback(ctx)
+	qtx := s.q.WithTx(tx)
+
+	status, err := qtx.LockGroupStatus(ctx, groupID)
+	switch {
+	case errors.Is(err, pgx.ErrNoRows):
+		return types.NewNotFoundError("group not found")
+	case err != nil:
+		s.logger.Errorw("delete expense: lock group", "error", err)
+		return types.NewServerError()
+	}
+	if status != types.GroupOpen {
+		return types.NewConflictError("group is not open")
+	}
+
+	old, err := qtx.LockExpenseForUpdate(ctx, repo.LockExpenseForUpdateParams{ID: expenseID, GroupID: groupID})
+	switch {
+	case errors.Is(err, pgx.ErrNoRows):
+		return types.NewNotFoundError("expense not found")
+	case err != nil:
+		s.logger.Errorw("delete expense: load expense", "error", err)
+		return types.NewServerError()
+	}
+	if old.UserID != caller.UserID {
+		return types.NewForbiddenError("you can only delete your own expenses")
+	}
+
+	if err := qtx.SoftDeleteExpense(ctx, expenseID); err != nil {
+		s.logger.Errorw("delete expense: delete", "error", err)
+		return types.NewServerError()
+	}
+
+	if err := s.writeAudit(ctx, qtx, auditEntry{
+		GroupID:     groupID,
+		ActorUserID: caller.UserID,
+		Action:      "expense.deleted",
+		Before:      expenseAudit{ExpenseID: expenseID, AmountBaisa: old.AmountBaisa},
+	}); err != nil {
+		s.logger.Errorw("delete expense: write audit", "error", err)
+		return types.NewServerError()
+	}
+
+	if err := tx.Commit(ctx); err != nil {
+		s.logger.Errorw("delete expense: commit", "error", err)
+		return types.NewServerError()
+	}
+	return nil
 }
 
 func (s *Services) UpdateExpense(ctx context.Context, id types.Identity, groupID, expenseID string, req types.UpdateExpenseRequest) (*types.Expense, types.APIError) {
