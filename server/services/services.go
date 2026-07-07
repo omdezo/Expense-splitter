@@ -5,6 +5,7 @@ import (
 
 	"expense-splitter/database/repo"
 	"expense-splitter/keycloak"
+	"expense-splitter/storage"
 	"expense-splitter/types"
 )
 
@@ -14,11 +15,12 @@ type Services struct {
 	logger *types.Logger
 	authz  *Authorizer
 	kc     *keycloak.Client
+	store  *storage.Client
 }
 
-func New(db *types.DBPool, logger *types.Logger, kc *keycloak.Client) *Services {
+func New(db *types.DBPool, logger *types.Logger, kc *keycloak.Client, store *storage.Client) *Services {
 	q := repo.New(db)
-	return &Services{db: db, q: q, logger: logger, authz: NewAuthorizer(q, logger), kc: kc}
+	return &Services{db: db, q: q, logger: logger, authz: NewAuthorizer(q, logger), kc: kc, store: store}
 }
 
 func (s *Services) Health(ctx context.Context) error {

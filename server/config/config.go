@@ -29,6 +29,13 @@ func Load() *types.Config {
 			AdminUser:     os.Getenv("KEYCLOAK_ADMIN_USER"),
 			AdminPassword: os.Getenv("KEYCLOAK_ADMIN_PASSWORD"),
 		},
+		Storage: types.StorageConfig{
+			Endpoint:  os.Getenv("STORAGE_ENDPOINT"),
+			AccessKey: os.Getenv("STORAGE_ACCESS_KEY"),
+			SecretKey: os.Getenv("STORAGE_SECRET_KEY"),
+			Bucket:    os.Getenv("STORAGE_BUCKET"),
+			UseSSL:    os.Getenv("STORAGE_USE_SSL") == "true",
+		},
 		GlobalAdminEmail: os.Getenv("GLOBAL_ADMIN_EMAIL"),
 	}
 

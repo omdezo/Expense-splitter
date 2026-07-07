@@ -6,7 +6,21 @@ type Config struct {
 	Port             string
 	Postgres         PostgresConfig
 	Keycloak         KeycloakConfig
+	Storage          StorageConfig
 	GlobalAdminEmail string
+}
+
+// StorageConfig points at the S3-compatible object store for proof images.
+type StorageConfig struct {
+	Endpoint  string
+	AccessKey string
+	SecretKey string
+	Bucket    string
+	UseSSL    bool
+}
+
+func (s StorageConfig) Enabled() bool {
+	return s.Endpoint != "" && s.AccessKey != "" && s.SecretKey != "" && s.Bucket != ""
 }
 
 type KeycloakConfig struct {

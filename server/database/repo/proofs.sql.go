@@ -13,17 +13,18 @@ import (
 )
 
 const createProof = `-- name: CreateProof :one
-INSERT INTO proofs (payment_id, proof_type, sha256, byte_size, note)
-VALUES ($1::uuid, $2, $3, $4, $5)
+INSERT INTO proofs (payment_id, proof_type, sha256, byte_size, note, storage_key)
+VALUES ($1::uuid, $2, $3, $4, $5, $6)
 RETURNING id, created_at
 `
 
 type CreateProofParams struct {
-	PaymentID string          `json:"payment_id"`
-	ProofType types.ProofType `json:"proof_type"`
-	Sha256    *string         `json:"sha256"`
-	ByteSize  *int64          `json:"byte_size"`
-	Note      *string         `json:"note"`
+	PaymentID  string          `json:"payment_id"`
+	ProofType  types.ProofType `json:"proof_type"`
+	Sha256     *string         `json:"sha256"`
+	ByteSize   *int64          `json:"byte_size"`
+	Note       *string         `json:"note"`
+	StorageKey *string         `json:"storage_key"`
 }
 
 type CreateProofRow struct {
@@ -38,9 +39,41 @@ func (q *Queries) CreateProof(ctx context.Context, arg CreateProofParams) (Creat
 		arg.Sha256,
 		arg.ByteSize,
 		arg.Note,
+		arg.StorageKey,
 	)
 	var i CreateProofRow
 	err := row.Scan(&i.ID, &i.CreatedAt)
+	return i, err
+}
+
+const getCurrentProof = `-- name: GetCurrentProof :one
+SELECT id, proof_type, sha256, byte_size, note, storage_key, created_at
+FROM proofs
+WHERE payment_id = $1::uuid AND is_current
+`
+
+type GetCurrentProofRow struct {
+	ID         string          `json:"id"`
+	ProofType  types.ProofType `json:"proof_type"`
+	Sha256     *string         `json:"sha256"`
+	ByteSize   *int64          `json:"byte_size"`
+	Note       *string         `json:"note"`
+	StorageKey *string         `json:"storage_key"`
+	CreatedAt  time.Time       `json:"created_at"`
+}
+
+func (q *Queries) GetCurrentProof(ctx context.Context, paymentID string) (GetCurrentProofRow, error) {
+	row := q.db.QueryRow(ctx, getCurrentProof, paymentID)
+	var i GetCurrentProofRow
+	err := row.Scan(
+		&i.ID,
+		&i.ProofType,
+		&i.Sha256,
+		&i.ByteSize,
+		&i.Note,
+		&i.StorageKey,
+		&i.CreatedAt,
+	)
 	return i, err
 }
 

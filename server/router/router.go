@@ -46,6 +46,8 @@ func New(h *handler.Handler, auth *appmw.Auth) *echo.Echo {
 	e.DELETE("/groups/:id/members/:userId", h.RemoveMember, auth.Require())
 
 	e.POST("/payments/:id/proof", h.SubmitProof, auth.Require())
+	e.GET("/payments/:id/proof", h.GetProof, auth.Require())
+	e.GET("/payments/:id/proof/image", h.GetProofImage, auth.Require())
 	e.POST("/payments/:id/confirm", h.ConfirmPayment, auth.Require())
 	e.POST("/payments/:id/dispute", h.DisputePayment, auth.Require())
 	e.POST("/payments/:id/finalize", h.FinalizePayment, auth.Require())

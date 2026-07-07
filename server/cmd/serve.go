@@ -8,6 +8,7 @@ import (
 	"expense-splitter/middleware"
 	"expense-splitter/router"
 	"expense-splitter/services"
+	"expense-splitter/storage"
 )
 
 var serveCmd = &cobra.Command{
@@ -21,7 +22,8 @@ var serveCmd = &cobra.Command{
 		defer app.Close()
 
 		kc := keycloak.New(app.Cfg.Keycloak)
-		svc := services.New(app.DB.Pool, app.Logger, kc)
+		store := storage.New(app.Cfg.Storage)
+		svc := services.New(app.DB.Pool, app.Logger, kc, store)
 		h := handler.New(svc, app.Logger)
 		auth := middleware.NewAuth(app.Cfg.Keycloak)
 

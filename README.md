@@ -74,6 +74,11 @@ docker compose up --build      # or: make up
 - Postgres (app):   localhost:5433 → 5432
 - Keycloak:         http://localhost:8081  (admin console: `admin` / `admin`)
 - Postgres (KC):    internal only
+- MinIO (proofs):   http://localhost:9001 console (`minioadmin` / `minioadmin`)
+
+Proof images live in MinIO (S3-compatible); the DB stores only metadata plus a
+sha256, so a swapped file is detectable. Uploads are validated by **magic
+bytes** (jpeg/png/gif/webp), never by extension.
 
 Keycloak imports its realm on first boot (~30–60s). The app server starts
 immediately and fetches signing keys lazily, so startup order doesn't matter.

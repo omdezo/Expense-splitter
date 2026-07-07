@@ -479,14 +479,15 @@ type Payment struct {
 }
 
 type Proof struct {
-	ID        string          `json:"id"`
-	PaymentID string          `json:"payment_id"`
-	ProofType types.ProofType `json:"proof_type"`
-	Sha256    *string         `json:"sha256"`
-	ByteSize  *int64          `json:"byte_size"`
-	IsCurrent bool            `json:"is_current"`
-	CreatedAt time.Time       `json:"created_at"`
-	Note      *string         `json:"note"`
+	ID         string          `json:"id"`
+	PaymentID  string          `json:"payment_id"`
+	ProofType  types.ProofType `json:"proof_type"`
+	Sha256     *string         `json:"sha256"`
+	ByteSize   *int64          `json:"byte_size"`
+	IsCurrent  bool            `json:"is_current"`
+	CreatedAt  time.Time       `json:"created_at"`
+	Note       *string         `json:"note"`
+	StorageKey *string         `json:"storage_key"`
 }
 
 type SettlementRun struct {
