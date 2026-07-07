@@ -50,7 +50,7 @@ func TestWeightedShares(t *testing.T) {
 func TestSubsetWeightedReconciles(t *testing.T) {
 	members := []string{"a", "b", "c", "d"}
 	allocs := []expenseAllocation{
-		{Amount: 9000, Users: []string{"a", "b", "c"}, Weights: []int64{1, 1, 1}}, // subset: fuel for the car trio
+		{Amount: 9000, Users: []string{"a", "b", "c"}, Weights: []int64{1, 1, 1}},  // subset: fuel for the car trio
 		{Amount: 10000, Users: []string{"a", "b", "c"}, Weights: []int64{2, 1, 1}}, // weighted: a has the single room
 		{Amount: 3000}, // equal across everyone
 	}
