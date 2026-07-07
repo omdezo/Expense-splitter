@@ -31,9 +31,32 @@ func (r *LoginRequest) Validate() APIError {
 	return nil
 }
 
+type RefreshRequest struct {
+	RefreshToken string `json:"refresh_token"`
+}
+
+func (r *RefreshRequest) Validate() APIError {
+	if strings.TrimSpace(r.RefreshToken) == "" {
+		return NewBadRequestError("refresh_token is required")
+	}
+	return nil
+}
+
+type LogoutRequest struct {
+	RefreshToken string `json:"refresh_token"`
+}
+
+func (r *LogoutRequest) Validate() APIError {
+	if strings.TrimSpace(r.RefreshToken) == "" {
+		return NewBadRequestError("refresh_token is required")
+	}
+	return nil
+}
+
 type TokenResponse struct {
-	AccessToken  string `json:"access_token"`
-	RefreshToken string `json:"refresh_token,omitempty"`
-	ExpiresIn    int    `json:"expires_in"`
-	TokenType    string `json:"token_type"`
+	AccessToken  string     `json:"access_token"`
+	RefreshToken string     `json:"refresh_token,omitempty"`
+	ExpiresIn    int        `json:"expires_in"`
+	TokenType    string     `json:"token_type"`
+	User         *Principal `json:"user,omitempty"`
 }

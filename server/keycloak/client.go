@@ -61,6 +61,59 @@ func (c *Client) Login(ctx context.Context, username, password string) (*Token, 
 	return tok, nil
 }
 
+// Refresh exchanges a refresh token for a fresh token pair.
+func (c *Client) Refresh(ctx context.Context, refreshToken string) (*Token, error) {
+	if !c.cfg.LoginEnabled() {
+		return nil, ErrNotConfigured
+	}
+	form := url.Values{
+		"grant_type":    {"refresh_token"},
+		"client_id":     {c.cfg.ClientID},
+		"refresh_token": {refreshToken},
+	}
+	tok, status, err := c.token(ctx, c.cfg.Realm, form)
+	switch {
+	case err != nil:
+		return nil, ErrUnavailable
+	case status == http.StatusUnauthorized || status == http.StatusBadRequest:
+		return nil, ErrInvalidCredentials
+	case status != http.StatusOK:
+		return nil, ErrUnavailable
+	}
+	return tok, nil
+}
+
+// Logout revokes the session behind a refresh token. An already-invalid token
+// is treated as success — logout is idempotent.
+func (c *Client) Logout(ctx context.Context, refreshToken string) error {
+	if !c.cfg.LoginEnabled() {
+		return ErrNotConfigured
+	}
+	form := url.Values{
+		"client_id":     {c.cfg.ClientID},
+		"refresh_token": {refreshToken},
+	}
+	endpoint := fmt.Sprintf("%s/realms/%s/protocol/openid-connect/logout", c.cfg.BaseURL, url.PathEscape(c.cfg.Realm))
+	req, err := http.NewRequestWithContext(ctx, http.MethodPost, endpoint, strings.NewReader(form.Encode()))
+	if err != nil {
+		return err
+	}
+	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+
+	resp, err := c.http.Do(req)
+	if err != nil {
+		return ErrUnavailable
+	}
+	defer resp.Body.Close()
+
+	switch resp.StatusCode {
+	case http.StatusNoContent, http.StatusOK, http.StatusBadRequest, http.StatusUnauthorized:
+		return nil
+	default:
+		return ErrUnavailable
+	}
+}
+
 // CreateUser provisions a new enabled user with a permanent password via the
 // admin REST API and returns the Keycloak user id (the token "sub").
 func (c *Client) CreateUser(ctx context.Context, email, password, name string) (string, error) {

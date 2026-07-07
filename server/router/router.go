@@ -17,6 +17,8 @@ func New(h *handler.Handler, auth *appmw.Auth) *echo.Echo {
 	// Public auth endpoints that wrap Keycloak (no bearer token required).
 	e.POST("/auth/register", h.SignUp)
 	e.POST("/auth/login", h.Login)
+	e.POST("/auth/refresh", h.Refresh)
+	e.POST("/auth/logout", h.Logout)
 
 	// Public group status by shareable token — the ONLY unauthenticated group view.
 	e.GET("/public/groups/:token", h.PublicGroupStatus)

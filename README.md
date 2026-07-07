@@ -35,8 +35,14 @@ delegated to **Keycloak** (the server only validates tokens); authorization
 ## API
 
 Public (no token): `POST /auth/register`, `POST /auth/login`,
+`POST /auth/refresh`, `POST /auth/logout`,
 `GET /public/groups/:token` (share-token status), `GET /health`.
 Everything else requires `Authorization: Bearer <token>` from `/auth/login`.
+
+Session model: **login** returns `access_token` (~5 min), `refresh_token`, and
+your `user` (the local account is auto-provisioned/linked on login) —
+**refresh** renews the pair without the password, **logout** revokes the
+session (idempotent).
 
 | Area | Endpoints |
 |---|---|

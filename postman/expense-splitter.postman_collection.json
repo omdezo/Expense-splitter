@@ -44,6 +44,10 @@
       "value": ""
     },
     {
+      "key": "refresh_token",
+      "value": ""
+    },
+    {
       "key": "userId",
       "value": ""
     },
@@ -173,7 +177,7 @@
                 "login"
               ]
             },
-            "description": "Password login proxied to Keycloak. Stores {{access_token}} for the whole collection. Tokens expire after ~5 minutes — re-run when you see 401s.",
+            "description": "Password login proxied to Keycloak. Returns tokens AND your user (the local account is auto-provisioned/linked on login — no separate register-link step needed). Stores {{access_token}}, {{refresh_token}}, {{userId}}. Access tokens last ~5 min: use Refresh, not re-login.",
             "auth": {
               "type": "noauth"
             },
@@ -194,8 +198,155 @@
                 "type": "text/javascript",
                 "exec": [
                   "const j = pm.response.json();",
-                  "if (j && j.access_token) { pm.collectionVariables.set('access_token', j.access_token); console.log('token stored'); }",
+                  "if (j && j.access_token) { pm.collectionVariables.set('access_token', j.access_token); }",
+                  "if (j && j.refresh_token) { pm.collectionVariables.set('refresh_token', j.refresh_token); }",
+                  "if (j && j.user && j.user.id) { pm.collectionVariables.set('userId', j.user.id); console.log('logged in as ' + j.user.email); }",
                   "pm.test('status is 200', () => pm.response.to.have.status(200));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Login as member (last registered)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/auth/login",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "auth",
+                "login"
+              ]
+            },
+            "description": "Same login, but with the credentials of the user created by 'Register (sign up)'. OVERWRITES the collection token — every request now runs as that member. Re-run the admin Login to switch back.",
+            "auth": {
+              "type": "noauth"
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"{{newUserEmail}}\",\n  \"password\": \"{{newUserPassword}}\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const j = pm.response.json();",
+                  "if (j && j.access_token) { pm.collectionVariables.set('access_token', j.access_token); }",
+                  "if (j && j.refresh_token) { pm.collectionVariables.set('refresh_token', j.refresh_token); }",
+                  "if (j && j.user) { console.log('now acting as ' + j.user.email + ' (' + j.user.verification_status + ')'); }",
+                  "pm.test('status is 200', () => pm.response.to.have.status(200));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Refresh token",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/auth/refresh",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "auth",
+                "refresh"
+              ]
+            },
+            "description": "Trades {{refresh_token}} for a fresh pair — renew the session without re-sending the password. Updates both stored tokens.",
+            "auth": {
+              "type": "noauth"
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"refresh_token\": \"{{refresh_token}}\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const j = pm.response.json();",
+                  "if (j && j.access_token) { pm.collectionVariables.set('access_token', j.access_token); }",
+                  "if (j && j.refresh_token) { pm.collectionVariables.set('refresh_token', j.refresh_token); console.log('session renewed'); }",
+                  "pm.test('status is 200', () => pm.response.to.have.status(200));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Logout",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/auth/logout",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "auth",
+                "logout"
+              ]
+            },
+            "description": "Revokes the Keycloak session behind {{refresh_token}} (idempotent — 204 even if already invalid). The refresh token stops working immediately; the short-lived access token expires on its own.",
+            "auth": {
+              "type": "noauth"
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"refresh_token\": \"{{refresh_token}}\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status is 204', () => pm.response.to.have.status(204));"
                 ]
               }
             }
@@ -279,7 +430,7 @@
                 "register"
               ]
             },
-            "description": "Provision-or-link the authenticated Keycloak identity (idempotent). The seed admin runs this once after a DB reset."
+            "description": "OPTIONAL/legacy: login now auto-provisions the local account. Kept as an idempotent manual link for tools that only have a bearer token."
           }
         },
         {

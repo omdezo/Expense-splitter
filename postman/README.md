@@ -1,6 +1,8 @@
 # Postman collection
 
-`expense-splitter.postman_collection.json` — **every API endpoint** (44 requests, 10 folders, ordered like a real session).
+`expense-splitter.postman_collection.json` — **every API endpoint** (47 requests, 10 folders, ordered like a real session).
+
+Session model: **Login** stores `access_token` + `refresh_token` + your `userId` (login auto-provisions the local account). **Refresh token** renews the session without the password (~5-min access tokens). **Logout** revokes it. **Login as member** switches the whole collection to act as the user you last registered.
 
 ## Import
 Postman → **Import** → select the file (replace the old copy if prompted). No separate environment needed — variables live on the collection.
