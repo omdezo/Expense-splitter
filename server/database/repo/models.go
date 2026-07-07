@@ -458,11 +458,11 @@ type Membership struct {
 }
 
 type Notification struct {
-	ID              string    `json:"id"`
-	PaymentID       string    `json:"payment_id"`
-	RecipientUserID string    `json:"recipient_user_id"`
-	NudgeType       NudgeType `json:"nudge_type"`
-	LastSentAt      time.Time `json:"last_sent_at"`
+	ID              string          `json:"id"`
+	PaymentID       string          `json:"payment_id"`
+	RecipientUserID string          `json:"recipient_user_id"`
+	NudgeType       types.NudgeType `json:"nudge_type"`
+	LastSentAt      time.Time       `json:"last_sent_at"`
 }
 
 type Payment struct {

@@ -38,6 +38,7 @@ func New(h *handler.Handler, auth *appmw.Auth) *echo.Echo {
 	e.PATCH("/groups/:id/expenses/:expenseId", h.UpdateExpense, auth.Require())
 	e.DELETE("/groups/:id/expenses/:expenseId", h.DeleteExpense, auth.Require())
 	e.GET("/groups/:id/audit", h.GetGroupAudit, auth.Require())
+	e.POST("/groups/:id/nudges", h.RunNudges, auth.Require())
 	e.GET("/groups/:id/requests", h.ListJoinRequests, auth.Require())
 	e.POST("/groups/:id/members/:userId/approve", h.ApproveMember, auth.Require())
 	e.POST("/groups/:id/members/:userId/reject", h.RejectMember, auth.Require())
