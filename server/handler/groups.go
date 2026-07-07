@@ -92,6 +92,26 @@ func (h *Handler) GetGroup(c echo.Context) error {
 	return c.JSON(http.StatusOK, detail)
 }
 
+func (h *Handler) GetSettlementReport(c echo.Context) error {
+	identity := middleware.GetIdentity(c)
+	if identity == nil {
+		h.logger.Error("[GetSettlementReport] missing identity in context")
+		return c.JSON(http.StatusInternalServerError, types.NewServerError())
+	}
+
+	groupID := c.Param("id")
+	if _, err := uuid.Parse(groupID); err != nil {
+		return c.JSON(http.StatusBadRequest, types.NewBadRequestError("invalid group id"))
+	}
+
+	pdf, apiErr := h.services.SettlementReport(c.Request().Context(), *identity, groupID)
+	if apiErr != nil {
+		return c.JSON(apiErr.Status, apiErr)
+	}
+	c.Response().Header().Set("Content-Disposition", `attachment; filename="settlement-report.pdf"`)
+	return c.Blob(http.StatusOK, "application/pdf", pdf)
+}
+
 func (h *Handler) CloseGroup(c echo.Context) error {
 	identity := middleware.GetIdentity(c)
 	if identity == nil {

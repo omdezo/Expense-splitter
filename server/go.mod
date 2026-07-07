@@ -4,6 +4,7 @@ go 1.25.7
 
 require (
 	github.com/MicahParks/keyfunc/v3 v3.8.0
+	github.com/go-pdf/fpdf v0.9.0
 	github.com/golang-jwt/jwt/v5 v5.3.1
 	github.com/google/uuid v1.6.0
 	github.com/jackc/pgx/v5 v5.9.2

@@ -76,3 +76,38 @@ func (q *Queries) ListAuditEntries(ctx context.Context, groupID string) ([]ListA
 	}
 	return items, nil
 }
+
+const listPaymentAuditActors = `-- name: ListPaymentAuditActors :many
+SELECT actor_user_id, action, (after->>'payment_id')::text AS payment_id
+FROM audit_log
+WHERE group_id = $1::uuid
+  AND action LIKE 'payment.%'
+  AND after->>'payment_id' IS NOT NULL
+ORDER BY id
+`
+
+type ListPaymentAuditActorsRow struct {
+	ActorUserID *string `json:"actor_user_id"`
+	Action      string  `json:"action"`
+	PaymentID   string  `json:"payment_id"`
+}
+
+func (q *Queries) ListPaymentAuditActors(ctx context.Context, groupID string) ([]ListPaymentAuditActorsRow, error) {
+	rows, err := q.db.Query(ctx, listPaymentAuditActors, groupID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []ListPaymentAuditActorsRow
+	for rows.Next() {
+		var i ListPaymentAuditActorsRow
+		if err := rows.Scan(&i.ActorUserID, &i.Action, &i.PaymentID); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}

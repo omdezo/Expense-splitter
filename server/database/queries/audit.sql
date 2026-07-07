@@ -7,3 +7,11 @@ SELECT id, actor_user_id, action, before, after, created_at
 FROM audit_log
 WHERE group_id = @group_id::uuid
 ORDER BY id;
+
+-- name: ListPaymentAuditActors :many
+SELECT actor_user_id, action, (after->>'payment_id')::text AS payment_id
+FROM audit_log
+WHERE group_id = @group_id::uuid
+  AND action LIKE 'payment.%'
+  AND after->>'payment_id' IS NOT NULL
+ORDER BY id;
