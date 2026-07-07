@@ -1,11 +1,30 @@
 -- name: CreateExpense :one
-INSERT INTO expenses (group_id, paid_by, amount_baisa, category, description, occurred_on)
-VALUES (@group_id::uuid, @paid_by::uuid, @amount_baisa, @category, @description, @occurred_on::date)
+INSERT INTO expenses (group_id, paid_by, amount_baisa, category, description, occurred_on, split_type)
+VALUES (@group_id::uuid, @paid_by::uuid, @amount_baisa, @category, @description, @occurred_on::date, @split_type)
 RETURNING id, created_at;
+
+-- name: CreateExpenseShare :exec
+INSERT INTO expense_shares (expense_id, user_id, weight)
+VALUES (@expense_id::uuid, @user_id::uuid, @weight);
+
+-- name: ListExpenseAllocations :many
+SELECT e.id, e.amount_baisa, s.user_id, s.weight
+FROM expenses e
+LEFT JOIN expense_shares s ON s.expense_id = e.id
+WHERE e.group_id = @group_id::uuid AND e.deleted_at IS NULL
+ORDER BY e.created_at, e.id, s.user_id;
+
+-- name: UserHasExpenseShares :one
+SELECT EXISTS(
+  SELECT 1
+  FROM expense_shares s
+  JOIN expenses e ON e.id = s.expense_id
+  WHERE e.group_id = @group_id::uuid AND s.user_id = @user_id::uuid AND e.deleted_at IS NULL
+) AS has_shares;
 
 -- name: ListExpenses :many
 SELECT e.id, m.user_id AS paid_by, e.amount_baisa, e.category, e.description,
-       e.occurred_on::text AS occurred_on, e.created_at
+       e.occurred_on::text AS occurred_on, e.split_type, e.created_at
 FROM expenses e
 JOIN memberships m ON m.id = e.paid_by
 WHERE e.group_id = @group_id::uuid

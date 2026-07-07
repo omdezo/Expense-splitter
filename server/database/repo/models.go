@@ -420,7 +420,7 @@ type Expense struct {
 	Category    types.ExpenseCategory `json:"category"`
 	Description string                `json:"description"`
 	OccurredOn  string                `json:"occurred_on"`
-	SplitType   SplitType             `json:"split_type"`
+	SplitType   types.SplitType       `json:"split_type"`
 	DeletedAt   pgtype.Timestamptz    `json:"deleted_at"`
 	CreatedAt   time.Time             `json:"created_at"`
 	UpdatedAt   time.Time             `json:"updated_at"`

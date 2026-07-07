@@ -275,6 +275,15 @@ func (s *Services) RemoveMember(ctx context.Context, id types.Identity, groupID,
 		return types.NewConflictError("cannot remove a member who has recorded expenses")
 	}
 
+	hasShares, err := s.q.UserHasExpenseShares(ctx, repo.UserHasExpenseSharesParams{GroupID: groupID, UserID: targetUserID})
+	if err != nil {
+		s.logger.Errorw("remove member: check shares", "error", err)
+		return types.NewServerError()
+	}
+	if hasShares {
+		return types.NewConflictError("cannot remove a member who participates in expense splits")
+	}
+
 	if err := s.q.DeleteMembership(ctx, m.ID); err != nil {
 		s.logger.Errorw("remove member: delete", "error", err)
 		return types.NewServerError()

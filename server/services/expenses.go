@@ -94,6 +94,22 @@ func (s *Services) RecordExpense(ctx context.Context, id types.Identity, groupID
 		return nil, types.NewForbiddenError("your membership is not approved")
 	}
 
+	// Non-equal splits: every named participant must be an approved member of
+	// this group, otherwise settlement could assign debt to an outsider.
+	for _, share := range req.Shares {
+		sm, err := qtx.GetMembership(ctx, repo.GetMembershipParams{GroupID: groupID, UserID: share.UserID})
+		switch {
+		case errors.Is(err, pgx.ErrNoRows):
+			return nil, types.NewBadRequestError("shares[].user_id must be a member of this group")
+		case err != nil:
+			s.logger.Errorw("record expense: load share membership", "error", err)
+			return nil, types.NewServerError()
+		}
+		if sm.Status != types.MembershipApproved {
+			return nil, types.NewBadRequestError("shares[].user_id must be an approved member")
+		}
+	}
+
 	created, err := qtx.CreateExpense(ctx, repo.CreateExpenseParams{
 		GroupID:     groupID,
 		PaidBy:      m.ID,
@@ -101,10 +117,22 @@ func (s *Services) RecordExpense(ctx context.Context, id types.Identity, groupID
 		Category:    req.Category,
 		Description: req.Description,
 		OccurredOn:  req.OccurredOn,
+		SplitType:   req.SplitType(),
 	})
 	if err != nil {
 		s.logger.Errorw("record expense: insert", "error", err)
 		return nil, types.NewServerError()
+	}
+
+	for _, share := range req.Shares {
+		if err := qtx.CreateExpenseShare(ctx, repo.CreateExpenseShareParams{
+			ExpenseID: created.ID,
+			UserID:    share.UserID,
+			Weight:    int32(share.Weight),
+		}); err != nil {
+			s.logger.Errorw("record expense: insert share", "error", err)
+			return nil, types.NewServerError()
+		}
 	}
 
 	if err := s.writeAudit(ctx, qtx, auditEntry{
@@ -130,6 +158,8 @@ func (s *Services) RecordExpense(ctx context.Context, id types.Identity, groupID
 		Category:    req.Category,
 		Description: req.Description,
 		OccurredOn:  req.OccurredOn,
+		SplitType:   req.SplitType(),
+		Shares:      req.Shares,
 		CreatedAt:   created.CreatedAt,
 	}, nil
 }
@@ -175,6 +205,7 @@ func (s *Services) ListExpenses(ctx context.Context, id types.Identity, groupID 
 			Category:    r.Category,
 			Description: truncateDescription(r.Description),
 			OccurredOn:  r.OccurredOn,
+			SplitType:   r.SplitType,
 			CreatedAt:   r.CreatedAt,
 		})
 	}
@@ -259,6 +290,9 @@ func (s *Services) DeleteExpense(ctx context.Context, id types.Identity, groupID
 }
 
 func (s *Services) UpdateExpense(ctx context.Context, id types.Identity, groupID, expenseID string, req types.UpdateExpenseRequest) (*types.Expense, types.APIError) {
+	if len(req.Shares) > 0 {
+		return nil, types.NewBadRequestError("shares cannot be changed after recording — delete and re-record the expense")
+	}
 	caller, err := s.principalByKeycloakID(ctx, id.Subject)
 	switch {
 	case errors.Is(err, pgx.ErrNoRows):

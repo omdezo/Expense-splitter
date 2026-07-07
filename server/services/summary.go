@@ -62,7 +62,17 @@ func (s *Services) GroupSummary(ctx context.Context, id types.Identity, groupID 
 		spendPerCategory[string(r.Category)] = r.Total
 	}
 
-	shares := fairShares(total, len(members))
+	allocRows, err := s.q.ListExpenseAllocations(ctx, groupID)
+	if err != nil {
+		s.logger.Errorw("summary: query allocations", "error", err)
+		return nil, types.NewServerError()
+	}
+	memberIDs := make([]string, len(members))
+	for i, m := range members {
+		memberIDs[i] = m.UserID
+	}
+	fair := buildFairShares(memberIDs, allocationsFromRows(allocRows))
+
 	summary := &types.GroupSummary{
 		GroupID:          g.ID,
 		Name:             g.Name,
@@ -74,14 +84,14 @@ func (s *Services) GroupSummary(ctx context.Context, id types.Identity, groupID 
 		SpendPerCategory: spendPerCategory,
 		Members:          make([]types.MemberSummary, 0, len(members)),
 	}
-	for i, m := range members {
+	for _, m := range members {
 		p := paid[m.ID]
 		summary.Members = append(summary.Members, types.MemberSummary{
 			UserID:    m.UserID,
 			Email:     m.Email,
 			Paid:      p,
-			FairShare: shares[i],
-			Net:       p - shares[i],
+			FairShare: fair[m.UserID],
+			Net:       p - fair[m.UserID],
 		})
 	}
 	return summary, nil

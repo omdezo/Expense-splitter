@@ -75,11 +75,21 @@ func (s *Services) CloseGroup(ctx context.Context, id types.Identity, groupID st
 		total += v
 	}
 
-	shares := fairShares(total, len(members))
+	allocRows, err := qtx.ListExpenseAllocations(ctx, groupID)
+	if err != nil {
+		s.logger.Errorw("close: query allocations", "error", err)
+		return nil, types.NewServerError()
+	}
+	memberIDs := make([]string, len(members))
+	for i, m := range members {
+		memberIDs[i] = m.UserID
+	}
+	fair := buildFairShares(memberIDs, allocationsFromRows(allocRows))
+
 	balances := make([]types.MemberBalance, len(members))
 	for i, m := range members {
 		p := paid[m.ID]
-		balances[i] = types.MemberBalance{UserID: m.UserID, Paid: p, FairShare: shares[i], Net: p - shares[i]}
+		balances[i] = types.MemberBalance{UserID: m.UserID, Paid: p, FairShare: fair[m.UserID], Net: p - fair[m.UserID]}
 	}
 	plan := computePlan(balances)
 

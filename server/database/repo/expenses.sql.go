@@ -13,8 +13,8 @@ import (
 )
 
 const createExpense = `-- name: CreateExpense :one
-INSERT INTO expenses (group_id, paid_by, amount_baisa, category, description, occurred_on)
-VALUES ($1::uuid, $2::uuid, $3, $4, $5, $6::date)
+INSERT INTO expenses (group_id, paid_by, amount_baisa, category, description, occurred_on, split_type)
+VALUES ($1::uuid, $2::uuid, $3, $4, $5, $6::date, $7)
 RETURNING id, created_at
 `
 
@@ -25,6 +25,7 @@ type CreateExpenseParams struct {
 	Category    types.ExpenseCategory `json:"category"`
 	Description string                `json:"description"`
 	OccurredOn  string                `json:"occurred_on"`
+	SplitType   types.SplitType       `json:"split_type"`
 }
 
 type CreateExpenseRow struct {
@@ -40,15 +41,72 @@ func (q *Queries) CreateExpense(ctx context.Context, arg CreateExpenseParams) (C
 		arg.Category,
 		arg.Description,
 		arg.OccurredOn,
+		arg.SplitType,
 	)
 	var i CreateExpenseRow
 	err := row.Scan(&i.ID, &i.CreatedAt)
 	return i, err
 }
 
+const createExpenseShare = `-- name: CreateExpenseShare :exec
+INSERT INTO expense_shares (expense_id, user_id, weight)
+VALUES ($1::uuid, $2::uuid, $3)
+`
+
+type CreateExpenseShareParams struct {
+	ExpenseID string `json:"expense_id"`
+	UserID    string `json:"user_id"`
+	Weight    int32  `json:"weight"`
+}
+
+func (q *Queries) CreateExpenseShare(ctx context.Context, arg CreateExpenseShareParams) error {
+	_, err := q.db.Exec(ctx, createExpenseShare, arg.ExpenseID, arg.UserID, arg.Weight)
+	return err
+}
+
+const listExpenseAllocations = `-- name: ListExpenseAllocations :many
+SELECT e.id, e.amount_baisa, s.user_id, s.weight
+FROM expenses e
+LEFT JOIN expense_shares s ON s.expense_id = e.id
+WHERE e.group_id = $1::uuid AND e.deleted_at IS NULL
+ORDER BY e.created_at, e.id, s.user_id
+`
+
+type ListExpenseAllocationsRow struct {
+	ID          string  `json:"id"`
+	AmountBaisa int64   `json:"amount_baisa"`
+	UserID      *string `json:"user_id"`
+	Weight      *int    `json:"weight"`
+}
+
+func (q *Queries) ListExpenseAllocations(ctx context.Context, groupID string) ([]ListExpenseAllocationsRow, error) {
+	rows, err := q.db.Query(ctx, listExpenseAllocations, groupID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []ListExpenseAllocationsRow
+	for rows.Next() {
+		var i ListExpenseAllocationsRow
+		if err := rows.Scan(
+			&i.ID,
+			&i.AmountBaisa,
+			&i.UserID,
+			&i.Weight,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const listExpenses = `-- name: ListExpenses :many
 SELECT e.id, m.user_id AS paid_by, e.amount_baisa, e.category, e.description,
-       e.occurred_on::text AS occurred_on, e.created_at
+       e.occurred_on::text AS occurred_on, e.split_type, e.created_at
 FROM expenses e
 JOIN memberships m ON m.id = e.paid_by
 WHERE e.group_id = $1::uuid
@@ -73,6 +131,7 @@ type ListExpensesRow struct {
 	Category    types.ExpenseCategory `json:"category"`
 	Description string                `json:"description"`
 	OccurredOn  string                `json:"occurred_on"`
+	SplitType   types.SplitType       `json:"split_type"`
 	CreatedAt   time.Time             `json:"created_at"`
 }
 
@@ -97,6 +156,7 @@ func (q *Queries) ListExpenses(ctx context.Context, arg ListExpensesParams) ([]L
 			&i.Category,
 			&i.Description,
 			&i.OccurredOn,
+			&i.SplitType,
 			&i.CreatedAt,
 		); err != nil {
 			return nil, err
@@ -236,4 +296,25 @@ func (q *Queries) UpdateExpense(ctx context.Context, arg UpdateExpenseParams) (t
 	var created_at time.Time
 	err := row.Scan(&created_at)
 	return created_at, err
+}
+
+const userHasExpenseShares = `-- name: UserHasExpenseShares :one
+SELECT EXISTS(
+  SELECT 1
+  FROM expense_shares s
+  JOIN expenses e ON e.id = s.expense_id
+  WHERE e.group_id = $1::uuid AND s.user_id = $2::uuid AND e.deleted_at IS NULL
+) AS has_shares
+`
+
+type UserHasExpenseSharesParams struct {
+	GroupID string `json:"group_id"`
+	UserID  string `json:"user_id"`
+}
+
+func (q *Queries) UserHasExpenseShares(ctx context.Context, arg UserHasExpenseSharesParams) (bool, error) {
+	row := q.db.QueryRow(ctx, userHasExpenseShares, arg.GroupID, arg.UserID)
+	var has_shares bool
+	err := row.Scan(&has_shares)
+	return has_shares, err
 }
