@@ -57,13 +57,21 @@ session (idempotent).
 | Ops | `GET /groups/:id/audit` (admins) · `POST /groups/:id/nudges?hours=` (idempotent reminders) |
 
 The `postman/` collection covers all of these with auto-chained variables —
-run **Login** first, then top to bottom.
+run **Login** first, then top to bottom. Or run the **"0. E2E" folder** in the
+Collection Runner for a one-click, asserted end-to-end pass.
+
+**Pagination**: the unbounded lists — `GET /admin/users`, `GET /admin/groups`,
+`GET /groups/:id/expenses`, `GET /groups/:id/audit` — take `?limit=` (1–200,
+default 50) and `?offset=` and return `{total, limit, offset, items}`.
 
 ## Testing
 
 ```bash
 make test          # all unit tests (settlement math, truncation, authz, tamper suite)
 make test-pkg PKG=./services RUN='TestTamper'   # a specific area, verbose
+make test-e2e      # FULL end-to-end API suite against the running stack:
+                   # every endpoint, weighted-split math, tamper denials,
+                   # image-proof round-trip, dispute loop, nudges, admin CRUD
 ```
 
 Unit tests are co-located with the code; the settlement algorithm, the

@@ -22,9 +22,14 @@ func (h *Handler) GetGroupAudit(c echo.Context) error {
 		return c.JSON(http.StatusBadRequest, types.NewBadRequestError("invalid group id"))
 	}
 
-	entries, apiErr := h.services.ListGroupAudit(c.Request().Context(), *identity, groupID)
+	limit, offset, apiErr := parsePage(c)
 	if apiErr != nil {
 		return c.JSON(apiErr.Status, apiErr)
 	}
-	return c.JSON(http.StatusOK, entries)
+
+	page, apiErr := h.services.ListGroupAudit(c.Request().Context(), *identity, groupID, limit, offset)
+	if apiErr != nil {
+		return c.JSON(apiErr.Status, apiErr)
+	}
+	return c.JSON(http.StatusOK, page)
 }

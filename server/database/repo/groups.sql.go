@@ -179,10 +179,17 @@ func (q *Queries) GroupHasHistory(ctx context.Context, id string) (bool, error) 
 const listAllGroups = `-- name: ListAllGroups :many
 SELECT g.id, g.name, g.start_date, g.end_date, g.status, g.created_by, g.created_at,
        COALESCE((SELECT COUNT(*) FROM memberships m WHERE m.group_id = g.id AND m.status = 'approved'), 0)::bigint AS member_count,
-       COALESCE((SELECT SUM(e.amount_baisa) FROM expenses e WHERE e.group_id = g.id AND e.deleted_at IS NULL), 0)::bigint AS total_spent
+       COALESCE((SELECT SUM(e.amount_baisa) FROM expenses e WHERE e.group_id = g.id AND e.deleted_at IS NULL), 0)::bigint AS total_spent,
+       COUNT(*) OVER()::bigint AS full_count
 FROM groups g
 ORDER BY g.created_at DESC
+LIMIT $2::int OFFSET $1::int
 `
+
+type ListAllGroupsParams struct {
+	PageOffset int32 `json:"page_offset"`
+	PageLimit  int32 `json:"page_limit"`
+}
 
 type ListAllGroupsRow struct {
 	ID          string            `json:"id"`
@@ -194,10 +201,11 @@ type ListAllGroupsRow struct {
 	CreatedAt   time.Time         `json:"created_at"`
 	MemberCount int64             `json:"member_count"`
 	TotalSpent  int64             `json:"total_spent"`
+	FullCount   int64             `json:"full_count"`
 }
 
-func (q *Queries) ListAllGroups(ctx context.Context) ([]ListAllGroupsRow, error) {
-	rows, err := q.db.Query(ctx, listAllGroups)
+func (q *Queries) ListAllGroups(ctx context.Context, arg ListAllGroupsParams) ([]ListAllGroupsRow, error) {
+	rows, err := q.db.Query(ctx, listAllGroups, arg.PageOffset, arg.PageLimit)
 	if err != nil {
 		return nil, err
 	}
@@ -215,6 +223,7 @@ func (q *Queries) ListAllGroups(ctx context.Context) ([]ListAllGroupsRow, error)
 			&i.CreatedAt,
 			&i.MemberCount,
 			&i.TotalSpent,
+			&i.FullCount,
 		); err != nil {
 			return nil, err
 		}

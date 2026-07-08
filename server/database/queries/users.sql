@@ -33,10 +33,12 @@ WHERE id = @id::uuid
 RETURNING id, email, is_global_admin, verification_status;
 
 -- name: ListUsers :many
-SELECT id, email, is_global_admin, verification_status, (keycloak_id IS NOT NULL)::bool AS linked, created_at
+SELECT id, email, is_global_admin, verification_status, (keycloak_id IS NOT NULL)::bool AS linked, created_at,
+       COUNT(*) OVER()::bigint AS full_count
 FROM users
 WHERE (sqlc.narg('status')::verification_status IS NULL OR verification_status = sqlc.narg('status')::verification_status)
-ORDER BY created_at;
+ORDER BY created_at
+LIMIT @page_limit::int OFFSET @page_offset::int;
 
 -- name: GetUserAdminView :one
 SELECT id, email, is_global_admin, verification_status, (keycloak_id IS NOT NULL)::bool AS linked, created_at

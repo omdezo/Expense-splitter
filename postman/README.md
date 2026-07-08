@@ -1,8 +1,20 @@
 # Postman collection
 
-`expense-splitter.postman_collection.json` — **every API endpoint** (47 requests, 10 folders, ordered like a real session).
+`expense-splitter.postman_collection.json` — **every API endpoint** (72 requests, 11 folders, ordered like a real session).
+
+## One-command end-to-end test
+Right-click **"0. E2E — run this folder in the Collection Runner" → Run folder**. 25 ordered steps
+execute the complete story with assertions at every step — admin login → register + verify two users
+→ group → join/approve → equal + weighted expenses → pagination check → summary math → public status
+→ close → plan → tamper denial → proof → confirm → finalize → "1 of 1 settled" → audit trail → PDF.
+It switches identities automatically (each request carries its own token) and generates fresh users
+per run, so it's repeatable. The same flow (plus dispute loops, image proofs, nudges, admin CRUD) runs
+in CI-style via `make test-e2e`.
 
 Session model: **Login** stores `access_token` + `refresh_token` + your `userId` (login auto-provisions the local account). **Refresh token** renews the session without the password (~5-min access tokens). **Logout** revokes it. **Login as member** switches the whole collection to act as the user you last registered.
+
+Pagination: the unbounded lists (admin users, admin groups, expenses, audit) return
+`{total, limit, offset, items}` — `?limit=` (1–200, default 50) and `?offset=` params are on each request, disabled by default.
 
 ## Import
 Postman → **Import** → select the file (replace the old copy if prompted). No separate environment needed — variables live on the collection.

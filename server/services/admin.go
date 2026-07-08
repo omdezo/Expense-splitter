@@ -7,6 +7,7 @@ import (
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgconn"
 
+	"expense-splitter/database/repo"
 	"expense-splitter/types"
 )
 
@@ -26,9 +27,9 @@ func (s *Services) requireGlobalAdmin(ctx context.Context, id types.Identity) (*
 	return caller, nil
 }
 
-// AdminListUsers lists every account, optionally filtered by verification
-// status (spec #3: the global admin manages all users).
-func (s *Services) AdminListUsers(ctx context.Context, id types.Identity, status string) ([]types.AdminUserView, types.APIError) {
+// AdminListUsers lists accounts (paginated), optionally filtered by
+// verification status (spec #3: the global admin manages all users).
+func (s *Services) AdminListUsers(ctx context.Context, id types.Identity, status string, limit, offset int) (*types.Page, types.APIError) {
 	if _, apiErr := s.requireGlobalAdmin(ctx, id); apiErr != nil {
 		return nil, apiErr
 	}
@@ -44,14 +45,16 @@ func (s *Services) AdminListUsers(ctx context.Context, id types.Identity, status
 		}
 	}
 
-	rows, err := s.q.ListUsers(ctx, filter)
+	rows, err := s.q.ListUsers(ctx, repo.ListUsersParams{Status: filter, PageLimit: int32(limit), PageOffset: int32(offset)})
 	if err != nil {
 		s.logger.Errorw("admin list users: query", "error", err)
 		return nil, types.NewServerError()
 	}
 
+	page := &types.Page{Limit: limit, Offset: offset}
 	out := make([]types.AdminUserView, 0, len(rows))
 	for _, r := range rows {
+		page.Total = r.FullCount
 		out = append(out, types.AdminUserView{
 			ID:                 r.ID,
 			Email:              r.Email,
@@ -61,7 +64,8 @@ func (s *Services) AdminListUsers(ctx context.Context, id types.Identity, status
 			CreatedAt:          r.CreatedAt,
 		})
 	}
-	return out, nil
+	page.Items = out
+	return page, nil
 }
 
 // AdminGetUser returns one account plus every group membership it holds.
@@ -174,20 +178,22 @@ func (s *Services) AdminDeleteUser(ctx context.Context, id types.Identity, userI
 	return nil
 }
 
-// AdminListGroups is the global admin's view of every group in the system.
-func (s *Services) AdminListGroups(ctx context.Context, id types.Identity) ([]types.AdminGroupView, types.APIError) {
+// AdminListGroups is the global admin's paginated view of every group.
+func (s *Services) AdminListGroups(ctx context.Context, id types.Identity, limit, offset int) (*types.Page, types.APIError) {
 	if _, apiErr := s.requireGlobalAdmin(ctx, id); apiErr != nil {
 		return nil, apiErr
 	}
 
-	rows, err := s.q.ListAllGroups(ctx)
+	rows, err := s.q.ListAllGroups(ctx, repo.ListAllGroupsParams{PageLimit: int32(limit), PageOffset: int32(offset)})
 	if err != nil {
 		s.logger.Errorw("admin list groups: query", "error", err)
 		return nil, types.NewServerError()
 	}
 
+	page := &types.Page{Limit: limit, Offset: offset}
 	out := make([]types.AdminGroupView, 0, len(rows))
 	for _, r := range rows {
+		page.Total = r.FullCount
 		out = append(out, types.AdminGroupView{
 			ID:          r.ID,
 			Name:        r.Name,
@@ -200,7 +206,8 @@ func (s *Services) AdminListGroups(ctx context.Context, id types.Identity) ([]ty
 			CreatedAt:   r.CreatedAt,
 		})
 	}
-	return out, nil
+	page.Items = out
+	return page, nil
 }
 
 // AdminDeleteGroup removes a group that never accumulated history: no

@@ -53,8 +53,9 @@ func jsonbArg(v any) ([]byte, error) {
 	return json.Marshal(v)
 }
 
-// ListGroupAudit is the admin read API for a group's audit trail (req #16).
-func (s *Services) ListGroupAudit(ctx context.Context, id types.Identity, groupID string) ([]types.AuditEntryView, types.APIError) {
+// ListGroupAudit is the paginated admin read API for a group's audit trail
+// (req #16).
+func (s *Services) ListGroupAudit(ctx context.Context, id types.Identity, groupID string, limit, offset int) (*types.Page, types.APIError) {
 	caller, err := s.principalByKeycloakID(ctx, id.Subject)
 	switch {
 	case errors.Is(err, pgx.ErrNoRows):
@@ -67,14 +68,16 @@ func (s *Services) ListGroupAudit(ctx context.Context, id types.Identity, groupI
 		return nil, apiErr
 	}
 
-	rows, err := s.q.ListAuditEntries(ctx, groupID)
+	rows, err := s.q.ListAuditEntries(ctx, repo.ListAuditEntriesParams{GroupID: groupID, PageLimit: int32(limit), PageOffset: int32(offset)})
 	if err != nil {
 		s.logger.Errorw("audit list: query", "error", err)
 		return nil, types.NewServerError()
 	}
 
+	page := &types.Page{Limit: limit, Offset: offset}
 	out := make([]types.AuditEntryView, 0, len(rows))
 	for _, r := range rows {
+		page.Total = r.FullCount
 		out = append(out, types.AuditEntryView{
 			ID:          r.ID,
 			ActorUserID: r.ActorUserID,
@@ -84,5 +87,6 @@ func (s *Services) ListGroupAudit(ctx context.Context, id types.Identity, groupI
 			CreatedAt:   r.CreatedAt,
 		})
 	}
-	return out, nil
+	page.Items = out
+	return page, nil
 }

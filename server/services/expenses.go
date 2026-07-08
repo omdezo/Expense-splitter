@@ -164,7 +164,7 @@ func (s *Services) RecordExpense(ctx context.Context, id types.Identity, groupID
 	}, nil
 }
 
-func (s *Services) ListExpenses(ctx context.Context, id types.Identity, groupID string, filter types.ExpenseFilter) ([]types.Expense, types.APIError) {
+func (s *Services) ListExpenses(ctx context.Context, id types.Identity, groupID string, filter types.ExpenseFilter, limit, offset int) (*types.Page, types.APIError) {
 	caller, err := s.principalByKeycloakID(ctx, id.Subject)
 	switch {
 	case errors.Is(err, pgx.ErrNoRows):
@@ -177,7 +177,7 @@ func (s *Services) ListExpenses(ctx context.Context, id types.Identity, groupID 
 		return nil, apiErr
 	}
 
-	params := repo.ListExpensesParams{GroupID: groupID}
+	params := repo.ListExpensesParams{GroupID: groupID, PageLimit: int32(limit), PageOffset: int32(offset)}
 	if filter.Category != "" {
 		params.Category = &filter.Category
 	}
@@ -195,8 +195,10 @@ func (s *Services) ListExpenses(ctx context.Context, id types.Identity, groupID 
 		return nil, types.NewServerError()
 	}
 
+	page := &types.Page{Limit: limit, Offset: offset}
 	out := make([]types.Expense, 0, len(rows))
 	for _, r := range rows {
+		page.Total = r.FullCount
 		out = append(out, types.Expense{
 			ID:          r.ID,
 			GroupID:     groupID,
@@ -209,7 +211,8 @@ func (s *Services) ListExpenses(ctx context.Context, id types.Identity, groupID 
 			CreatedAt:   r.CreatedAt,
 		})
 	}
-	return out, nil
+	page.Items = out
+	return page, nil
 }
 
 type expenseAmountAudit struct {

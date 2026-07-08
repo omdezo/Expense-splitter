@@ -3,10 +3,12 @@ INSERT INTO audit_log (group_id, actor_user_id, action, before, after)
 VALUES (sqlc.narg('group_id')::uuid, @actor_user_id::uuid, @action, @before, @after);
 
 -- name: ListAuditEntries :many
-SELECT id, actor_user_id, action, before, after, created_at
+SELECT id, actor_user_id, action, before, after, created_at,
+       COUNT(*) OVER()::bigint AS full_count
 FROM audit_log
 WHERE group_id = @group_id::uuid
-ORDER BY id;
+ORDER BY id
+LIMIT @page_limit::int OFFSET @page_offset::int;
 
 -- name: ListPaymentAuditActors :many
 SELECT actor_user_id, action, (after->>'payment_id')::text AS payment_id

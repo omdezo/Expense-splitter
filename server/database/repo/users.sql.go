@@ -174,11 +174,19 @@ func (q *Queries) LinkUserKeycloakID(ctx context.Context, arg LinkUserKeycloakID
 }
 
 const listUsers = `-- name: ListUsers :many
-SELECT id, email, is_global_admin, verification_status, (keycloak_id IS NOT NULL)::bool AS linked, created_at
+SELECT id, email, is_global_admin, verification_status, (keycloak_id IS NOT NULL)::bool AS linked, created_at,
+       COUNT(*) OVER()::bigint AS full_count
 FROM users
 WHERE ($1::verification_status IS NULL OR verification_status = $1::verification_status)
 ORDER BY created_at
+LIMIT $3::int OFFSET $2::int
 `
+
+type ListUsersParams struct {
+	Status     *types.VerificationStatus `json:"status"`
+	PageOffset int32                     `json:"page_offset"`
+	PageLimit  int32                     `json:"page_limit"`
+}
 
 type ListUsersRow struct {
 	ID                 string                   `json:"id"`
@@ -187,10 +195,11 @@ type ListUsersRow struct {
 	VerificationStatus types.VerificationStatus `json:"verification_status"`
 	Linked             bool                     `json:"linked"`
 	CreatedAt          time.Time                `json:"created_at"`
+	FullCount          int64                    `json:"full_count"`
 }
 
-func (q *Queries) ListUsers(ctx context.Context, status *types.VerificationStatus) ([]ListUsersRow, error) {
-	rows, err := q.db.Query(ctx, listUsers, status)
+func (q *Queries) ListUsers(ctx context.Context, arg ListUsersParams) ([]ListUsersRow, error) {
+	rows, err := q.db.Query(ctx, listUsers, arg.Status, arg.PageOffset, arg.PageLimit)
 	if err != nil {
 		return nil, err
 	}
@@ -205,6 +214,7 @@ func (q *Queries) ListUsers(ctx context.Context, status *types.VerificationStatu
 			&i.VerificationStatus,
 			&i.Linked,
 			&i.CreatedAt,
+			&i.FullCount,
 		); err != nil {
 			return nil, err
 		}

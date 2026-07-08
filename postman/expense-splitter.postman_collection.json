@@ -74,9 +74,1341 @@
     {
       "key": "paymentId",
       "value": ""
+    },
+    {
+      "key": "e2eAdminTok",
+      "value": ""
+    },
+    {
+      "key": "e2ePayerTok",
+      "value": ""
+    },
+    {
+      "key": "e2eDebtorTok",
+      "value": ""
+    },
+    {
+      "key": "e2ePayerId",
+      "value": ""
+    },
+    {
+      "key": "e2eDebtorId",
+      "value": ""
+    },
+    {
+      "key": "e2ePayerEmail",
+      "value": ""
+    },
+    {
+      "key": "e2eDebtorEmail",
+      "value": ""
+    },
+    {
+      "key": "e2eGroupId",
+      "value": ""
+    },
+    {
+      "key": "e2eInvite",
+      "value": ""
+    },
+    {
+      "key": "e2eStatusToken",
+      "value": ""
+    },
+    {
+      "key": "e2ePaymentId",
+      "value": ""
     }
   ],
   "item": [
+    {
+      "name": "0. E2E — run this folder in the Collection Runner",
+      "item": [
+        {
+          "name": "01 admin login",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/auth/login",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "auth",
+                "login"
+              ]
+            },
+            "description": "Start of the end-to-end story. Run the WHOLE folder via Collection Runner (right-click folder -> Run).",
+            "auth": {
+              "type": "noauth"
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"{{email}}\",\n  \"password\": \"{{password}}\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "prerequest",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const ts = Date.now();",
+                  "pm.collectionVariables.set('e2ePayerEmail', 'e2e.payer.' + ts + '@test.local');",
+                  "pm.collectionVariables.set('e2eDebtorEmail', 'e2e.debtor.' + ts + '@test.local');"
+                ]
+              }
+            },
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status is 200', () => pm.response.to.have.status(200));",
+                  "const j = pm.response.json();",
+                  "pm.collectionVariables.set('e2eAdminTok', j.access_token);",
+                  "pm.test('login returns user', () => pm.expect(j.user.is_global_admin).to.be.true);"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "02 register payer",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/auth/register",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "auth",
+                "register"
+              ]
+            },
+            "description": "Creates the trip's payer.",
+            "auth": {
+              "type": "noauth"
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"{{e2ePayerEmail}}\",\n  \"password\": \"password123\",\n  \"name\": \"E2E Payer\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status is 201', () => pm.response.to.have.status(201));",
+                  "pm.collectionVariables.set('e2ePayerId', pm.response.json().id);"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "03 register debtor",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/auth/register",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "auth",
+                "register"
+              ]
+            },
+            "description": "Creates the trip's debtor.",
+            "auth": {
+              "type": "noauth"
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"{{e2eDebtorEmail}}\",\n  \"password\": \"password123\",\n  \"name\": \"E2E Debtor\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status is 201', () => pm.response.to.have.status(201));",
+                  "pm.collectionVariables.set('e2eDebtorId', pm.response.json().id);"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "04 verify payer",
+          "request": {
+            "method": "POST",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/admin/users/:userId/approve",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "admin",
+                "users",
+                ":userId",
+                "approve"
+              ],
+              "variable": [
+                {
+                  "key": "userId",
+                  "value": "{{e2ePayerId}}",
+                  "description": "payer"
+                }
+              ]
+            },
+            "description": "Global admin verifies the payer's account.",
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{e2eAdminTok}}",
+                  "type": "string"
+                }
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status is 200', () => pm.response.to.have.status(200));",
+                  "pm.test('verified', () => pm.expect(pm.response.json().verification_status).to.eql('verified'));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "05 verify debtor",
+          "request": {
+            "method": "POST",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/admin/users/:userId/approve",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "admin",
+                "users",
+                ":userId",
+                "approve"
+              ],
+              "variable": [
+                {
+                  "key": "userId",
+                  "value": "{{e2eDebtorId}}",
+                  "description": "debtor"
+                }
+              ]
+            },
+            "description": "Global admin verifies the debtor's account.",
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{e2eAdminTok}}",
+                  "type": "string"
+                }
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status is 200', () => pm.response.to.have.status(200));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "06 login payer",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/auth/login",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "auth",
+                "login"
+              ]
+            },
+            "description": "Payer session.",
+            "auth": {
+              "type": "noauth"
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"{{e2ePayerEmail}}\",\n  \"password\": \"password123\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status is 200', () => pm.response.to.have.status(200));",
+                  "pm.collectionVariables.set('e2ePayerTok', pm.response.json().access_token);"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "07 login debtor",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/auth/login",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "auth",
+                "login"
+              ]
+            },
+            "description": "Debtor session.",
+            "auth": {
+              "type": "noauth"
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"{{e2eDebtorEmail}}\",\n  \"password\": \"password123\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status is 200', () => pm.response.to.have.status(200));",
+                  "pm.collectionVariables.set('e2eDebtorTok', pm.response.json().access_token);"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "08 payer creates group",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/groups",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "groups"
+              ]
+            },
+            "description": "Payer becomes group-admin.",
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{e2ePayerTok}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"E2E Runner Trip\",\n  \"start_date\": \"2026-07-01T00:00:00Z\",\n  \"end_date\": \"2026-07-10T00:00:00Z\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status is 201', () => pm.response.to.have.status(201));",
+                  "const j = pm.response.json();",
+                  "pm.collectionVariables.set('e2eGroupId', j.id);",
+                  "pm.collectionVariables.set('e2eInvite', j.invite_token);"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "09 get group (share token)",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/groups/:groupId",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "groups",
+                ":groupId"
+              ],
+              "variable": [
+                {
+                  "key": "groupId",
+                  "value": "{{e2eGroupId}}",
+                  "description": "group"
+                }
+              ]
+            },
+            "description": "Captures the public share token.",
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{e2ePayerTok}}",
+                  "type": "string"
+                }
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status is 200', () => pm.response.to.have.status(200));",
+                  "pm.collectionVariables.set('e2eStatusToken', pm.response.json().status_token);"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "10 debtor joins",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/groups/join",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "groups",
+                "join"
+              ]
+            },
+            "description": "Debtor requests to join via invite token.",
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{e2eDebtorTok}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"invite_token\": \"{{e2eInvite}}\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status is 201', () => pm.response.to.have.status(201));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "11 payer approves member",
+          "request": {
+            "method": "POST",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/groups/:groupId/members/:userId/approve",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "groups",
+                ":groupId",
+                "members",
+                ":userId",
+                "approve"
+              ],
+              "variable": [
+                {
+                  "key": "groupId",
+                  "value": "{{e2eGroupId}}",
+                  "description": "group"
+                },
+                {
+                  "key": "userId",
+                  "value": "{{e2eDebtorId}}",
+                  "description": "debtor"
+                }
+              ]
+            },
+            "description": "Join request approved.",
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{e2ePayerTok}}",
+                  "type": "string"
+                }
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status is 200', () => pm.response.to.have.status(200));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "12 record equal expense",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/groups/:groupId/expenses",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "groups",
+                ":groupId",
+                "expenses"
+              ],
+              "variable": [
+                {
+                  "key": "groupId",
+                  "value": "{{e2eGroupId}}",
+                  "description": "group"
+                }
+              ]
+            },
+            "description": "Payer paid 10.000 OMR for everyone.",
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{e2ePayerTok}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"amount_baisa\": 10000,\n  \"category\": \"food\",\n  \"description\": \"e2e dinner\",\n  \"occurred_on\": \"2026-07-02\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status is 201', () => pm.response.to.have.status(201));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "13 record weighted expense",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/groups/:groupId/expenses",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "groups",
+                ":groupId",
+                "expenses"
+              ],
+              "variable": [
+                {
+                  "key": "groupId",
+                  "value": "{{e2eGroupId}}",
+                  "description": "group"
+                }
+              ]
+            },
+            "description": "Payer paid 9.000 OMR, split 2:1 (payer:debtor).",
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{e2ePayerTok}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"amount_baisa\": 9000,\n  \"category\": \"lodging\",\n  \"description\": \"e2e single room\",\n  \"occurred_on\": \"2026-07-03\",\n  \"shares\": [\n    {\n      \"user_id\": \"{{e2ePayerId}}\",\n      \"weight\": 2\n    },\n    {\n      \"user_id\": \"{{e2eDebtorId}}\",\n      \"weight\": 1\n    }\n  ]\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status is 201', () => pm.response.to.have.status(201));",
+                  "pm.test('weighted split', () => pm.expect(pm.response.json().split_type).to.eql('weighted'));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "14 list expenses (paginated)",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/groups/:groupId/expenses?limit=1",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "groups",
+                ":groupId",
+                "expenses"
+              ],
+              "variable": [
+                {
+                  "key": "groupId",
+                  "value": "{{e2eGroupId}}",
+                  "description": "group"
+                }
+              ],
+              "query": [
+                {
+                  "key": "limit",
+                  "value": "1",
+                  "description": "page size",
+                  "disabled": false
+                }
+              ]
+            },
+            "description": "Pagination envelope check.",
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{e2ePayerTok}}",
+                  "type": "string"
+                }
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status is 200', () => pm.response.to.have.status(200));",
+                  "const j = pm.response.json();",
+                  "pm.test('page of 1, total 2', () => { pm.expect(j.items.length).to.eql(1); pm.expect(j.total).to.eql(2); });"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "15 summary (weighted math)",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/groups/:groupId/summary",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "groups",
+                ":groupId",
+                "summary"
+              ],
+              "variable": [
+                {
+                  "key": "groupId",
+                  "value": "{{e2eGroupId}}",
+                  "description": "group"
+                }
+              ]
+            },
+            "description": "Payer net must be +8.000 OMR (paid 19000, fair 11000).",
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{e2eDebtorTok}}",
+                  "type": "string"
+                }
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status is 200', () => pm.response.to.have.status(200));",
+                  "const j = pm.response.json();",
+                  "const payer = j.members.find(m => m.user_id === pm.collectionVariables.get('e2ePayerId'));",
+                  "pm.test('payer net 8000', () => pm.expect(payer.net).to.eql(8000));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "16 public status (no auth)",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/public/groups/:statusToken",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "public",
+                "groups",
+                ":statusToken"
+              ],
+              "variable": [
+                {
+                  "key": "statusToken",
+                  "value": "{{e2eStatusToken}}",
+                  "description": "share token"
+                }
+              ]
+            },
+            "description": "The only unauthenticated view.",
+            "auth": {
+              "type": "noauth"
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status is 200', () => pm.response.to.have.status(200));",
+                  "pm.test('2 members', () => pm.expect(pm.response.json().member_count).to.eql(2));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "17 close group",
+          "request": {
+            "method": "POST",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/groups/:groupId/close",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "groups",
+                ":groupId",
+                "close"
+              ],
+              "variable": [
+                {
+                  "key": "groupId",
+                  "value": "{{e2eGroupId}}",
+                  "description": "group"
+                }
+              ]
+            },
+            "description": "Freeze + settle.",
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{e2ePayerTok}}",
+                  "type": "string"
+                }
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status is 200', () => pm.response.to.have.status(200));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "18 settlement plan",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/groups/:groupId/settlement",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "groups",
+                ":groupId",
+                "settlement"
+              ],
+              "variable": [
+                {
+                  "key": "groupId",
+                  "value": "{{e2eGroupId}}",
+                  "description": "group"
+                }
+              ]
+            },
+            "description": "One pending payment debtor -> payer of 8.000 OMR.",
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{e2eDebtorTok}}",
+                  "type": "string"
+                }
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status is 200', () => pm.response.to.have.status(200));",
+                  "const j = pm.response.json();",
+                  "pm.test('1 pending payment of 8000', () => { pm.expect(j.payments.length).to.eql(1); pm.expect(j.payments[0].amount_baisa).to.eql(8000); pm.expect(j.payments[0].status).to.eql('pending'); });",
+                  "pm.collectionVariables.set('e2ePaymentId', j.payments[0].id);"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "19 TAMPER: debtor self-finalize",
+          "request": {
+            "method": "POST",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/payments/:paymentId/finalize",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "payments",
+                ":paymentId",
+                "finalize"
+              ],
+              "variable": [
+                {
+                  "key": "paymentId",
+                  "value": "{{e2ePaymentId}}",
+                  "description": "payment"
+                }
+              ]
+            },
+            "description": "Must be DENIED (403) — the tamper-resistance spine.",
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{e2eDebtorTok}}",
+                  "type": "string"
+                }
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status is 403', () => pm.response.to.have.status(403));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "20 debtor submits proof",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/payments/:paymentId/proof",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "payments",
+                ":paymentId",
+                "proof"
+              ],
+              "variable": [
+                {
+                  "key": "paymentId",
+                  "value": "{{e2ePaymentId}}",
+                  "description": "payment"
+                }
+              ]
+            },
+            "description": "First key: the debtor's evidence.",
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{e2eDebtorTok}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"note\": \"paid 8000 baisa cash on the last day\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status is 200', () => pm.response.to.have.status(200));",
+                  "pm.test('proof_submitted', () => pm.expect(pm.response.json().status).to.eql('proof_submitted'));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "21 creditor confirms",
+          "request": {
+            "method": "POST",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/payments/:paymentId/confirm",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "payments",
+                ":paymentId",
+                "confirm"
+              ],
+              "variable": [
+                {
+                  "key": "paymentId",
+                  "value": "{{e2ePaymentId}}",
+                  "description": "payment"
+                }
+              ]
+            },
+            "description": "Second key: the creditor attests receipt.",
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{e2ePayerTok}}",
+                  "type": "string"
+                }
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status is 200', () => pm.response.to.have.status(200));",
+                  "pm.test('creditor_confirmed', () => pm.expect(pm.response.json().status).to.eql('creditor_confirmed'));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "22 admin finalizes",
+          "request": {
+            "method": "POST",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/payments/:paymentId/finalize",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "payments",
+                ":paymentId",
+                "finalize"
+              ],
+              "variable": [
+                {
+                  "key": "paymentId",
+                  "value": "{{e2ePaymentId}}",
+                  "description": "payment"
+                }
+              ]
+            },
+            "description": "Third key: group-admin settles it.",
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{e2ePayerTok}}",
+                  "type": "string"
+                }
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status is 200', () => pm.response.to.have.status(200));",
+                  "pm.test('settled', () => pm.expect(pm.response.json().status).to.eql('settled'));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "23 plan shows fully settled",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/groups/:groupId/settlement",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "groups",
+                ":groupId",
+                "settlement"
+              ],
+              "variable": [
+                {
+                  "key": "groupId",
+                  "value": "{{e2eGroupId}}",
+                  "description": "group"
+                }
+              ]
+            },
+            "description": "Aggregate 1 of 1 + group flipped to settled.",
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{e2ePayerTok}}",
+                  "type": "string"
+                }
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status is 200', () => pm.response.to.have.status(200));",
+                  "const j = pm.response.json();",
+                  "pm.test('1 of 1 settled', () => pm.expect(j.settled_count).to.eql(1));",
+                  "pm.test('group fully settled', () => pm.expect(j.group_status).to.eql('settled'));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "24 audit trail",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/groups/:groupId/audit?limit=200",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "groups",
+                ":groupId",
+                "audit"
+              ],
+              "variable": [
+                {
+                  "key": "groupId",
+                  "value": "{{e2eGroupId}}",
+                  "description": "group"
+                }
+              ],
+              "query": [
+                {
+                  "key": "limit",
+                  "value": "200",
+                  "description": "page size",
+                  "disabled": false
+                }
+              ]
+            },
+            "description": "The full story, recorded.",
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{e2ePayerTok}}",
+                  "type": "string"
+                }
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status is 200', () => pm.response.to.have.status(200));",
+                  "const acts = pm.response.json().items.map(e => e.action);",
+                  "['expense.created','group.closed','payment.proof_submitted','payment.creditor_confirmed','payment.settled','group.fully_settled'].forEach(a =>",
+                  "  pm.test('audit has ' + a, () => pm.expect(acts).to.include(a)));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "25 settlement report PDF",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/groups/:groupId/report.pdf",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "groups",
+                ":groupId",
+                "report.pdf"
+              ],
+              "variable": [
+                {
+                  "key": "groupId",
+                  "value": "{{e2eGroupId}}",
+                  "description": "group"
+                }
+              ]
+            },
+            "description": "The final artifact.",
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{e2ePayerTok}}",
+                  "type": "string"
+                }
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status is 200', () => pm.response.to.have.status(200));",
+                  "pm.test('is a PDF', () => pm.expect(pm.response.headers.get('Content-Type')).to.eql('application/pdf'));"
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    },
     {
       "name": "1. Public / Auth",
       "item": [
@@ -475,10 +1807,22 @@
                   "value": "verified",
                   "description": "registered|pending_verification|verified|rejected",
                   "disabled": true
+                },
+                {
+                  "key": "limit",
+                  "value": "50",
+                  "description": "Page size (1-200, default 50)",
+                  "disabled": true
+                },
+                {
+                  "key": "offset",
+                  "value": "0",
+                  "description": "Rows to skip",
+                  "disabled": true
                 }
               ]
             },
-            "description": "Global admin: every account (id, email, status, keycloak-linked). Enable the status param to filter."
+            "description": "Global admin, PAGINATED: {total, limit, offset, items}. Enable status/limit/offset params to filter and page."
           }
         },
         {
@@ -605,9 +1949,23 @@
               "path": [
                 "admin",
                 "groups"
+              ],
+              "query": [
+                {
+                  "key": "limit",
+                  "value": "50",
+                  "description": "Page size (1-200, default 50)",
+                  "disabled": true
+                },
+                {
+                  "key": "offset",
+                  "value": "0",
+                  "description": "Rows to skip",
+                  "disabled": true
+                }
               ]
             },
-            "description": "Global admin: every group with status, member count and total spent."
+            "description": "Global admin, PAGINATED envelope {total, limit, offset, items}: every group with status, member count and total spent."
           }
         },
         {
@@ -1209,10 +2567,22 @@
                   "value": "dinner",
                   "description": "Search in description",
                   "disabled": true
+                },
+                {
+                  "key": "limit",
+                  "value": "50",
+                  "description": "Page size (1-200, default 50)",
+                  "disabled": true
+                },
+                {
+                  "key": "offset",
+                  "value": "0",
+                  "description": "Rows to skip",
+                  "disabled": true
                 }
               ]
             },
-            "description": "Descriptions longer than 80 chars are truncated on a word boundary. Enable params to filter."
+            "description": "PAGINATED envelope {total, limit, offset, items}. Descriptions longer than 80 chars are truncated on a word boundary. Enable params to filter and page."
           }
         },
         {
@@ -1658,9 +3028,23 @@
                   "value": "{{groupId}}",
                   "description": "Group UUID"
                 }
+              ],
+              "query": [
+                {
+                  "key": "limit",
+                  "value": "50",
+                  "description": "Page size (1-200, default 50)",
+                  "disabled": true
+                },
+                {
+                  "key": "offset",
+                  "value": "0",
+                  "description": "Rows to skip",
+                  "disabled": true
+                }
               ]
             },
-            "description": "Group-admin/global-admin: full trail — who, what, before/after, when."
+            "description": "Group-admin/global-admin, PAGINATED envelope: full trail — who, what, before/after, when."
           }
         },
         {

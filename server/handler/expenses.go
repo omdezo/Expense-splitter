@@ -64,11 +64,16 @@ func (h *Handler) ListExpenses(c echo.Context) error {
 	}
 	filter.Search = c.QueryParam("q")
 
-	list, apiErr := h.services.ListExpenses(c.Request().Context(), *identity, groupID, filter)
+	limit, offset, apiErr := parsePage(c)
 	if apiErr != nil {
 		return c.JSON(apiErr.Status, apiErr)
 	}
-	return c.JSON(http.StatusOK, list)
+
+	page, apiErr := h.services.ListExpenses(c.Request().Context(), *identity, groupID, filter, limit, offset)
+	if apiErr != nil {
+		return c.JSON(apiErr.Status, apiErr)
+	}
+	return c.JSON(http.StatusOK, page)
 }
 
 func (h *Handler) DeleteExpense(c echo.Context) error {

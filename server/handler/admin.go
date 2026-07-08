@@ -17,11 +17,16 @@ func (h *Handler) AdminListUsers(c echo.Context) error {
 		return c.JSON(http.StatusInternalServerError, types.NewServerError())
 	}
 
-	users, apiErr := h.services.AdminListUsers(c.Request().Context(), *identity, c.QueryParam("status"))
+	limit, offset, apiErr := parsePage(c)
 	if apiErr != nil {
 		return c.JSON(apiErr.Status, apiErr)
 	}
-	return c.JSON(http.StatusOK, users)
+
+	page, apiErr := h.services.AdminListUsers(c.Request().Context(), *identity, c.QueryParam("status"), limit, offset)
+	if apiErr != nil {
+		return c.JSON(apiErr.Status, apiErr)
+	}
+	return c.JSON(http.StatusOK, page)
 }
 
 func (h *Handler) AdminGetUser(c echo.Context) error {
@@ -68,11 +73,16 @@ func (h *Handler) AdminListGroups(c echo.Context) error {
 		return c.JSON(http.StatusInternalServerError, types.NewServerError())
 	}
 
-	groups, apiErr := h.services.AdminListGroups(c.Request().Context(), *identity)
+	limit, offset, apiErr := parsePage(c)
 	if apiErr != nil {
 		return c.JSON(apiErr.Status, apiErr)
 	}
-	return c.JSON(http.StatusOK, groups)
+
+	page, apiErr := h.services.AdminListGroups(c.Request().Context(), *identity, limit, offset)
+	if apiErr != nil {
+		return c.JSON(apiErr.Status, apiErr)
+	}
+	return c.JSON(http.StatusOK, page)
 }
 
 func (h *Handler) AdminDeleteGroup(c echo.Context) error {

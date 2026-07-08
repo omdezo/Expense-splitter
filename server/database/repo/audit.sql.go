@@ -35,11 +35,19 @@ func (q *Queries) CreateAuditEntry(ctx context.Context, arg CreateAuditEntryPara
 }
 
 const listAuditEntries = `-- name: ListAuditEntries :many
-SELECT id, actor_user_id, action, before, after, created_at
+SELECT id, actor_user_id, action, before, after, created_at,
+       COUNT(*) OVER()::bigint AS full_count
 FROM audit_log
 WHERE group_id = $1::uuid
 ORDER BY id
+LIMIT $3::int OFFSET $2::int
 `
+
+type ListAuditEntriesParams struct {
+	GroupID    string `json:"group_id"`
+	PageOffset int32  `json:"page_offset"`
+	PageLimit  int32  `json:"page_limit"`
+}
 
 type ListAuditEntriesRow struct {
 	ID          int64     `json:"id"`
@@ -48,10 +56,11 @@ type ListAuditEntriesRow struct {
 	Before      []byte    `json:"before"`
 	After       []byte    `json:"after"`
 	CreatedAt   time.Time `json:"created_at"`
+	FullCount   int64     `json:"full_count"`
 }
 
-func (q *Queries) ListAuditEntries(ctx context.Context, groupID string) ([]ListAuditEntriesRow, error) {
-	rows, err := q.db.Query(ctx, listAuditEntries, groupID)
+func (q *Queries) ListAuditEntries(ctx context.Context, arg ListAuditEntriesParams) ([]ListAuditEntriesRow, error) {
+	rows, err := q.db.Query(ctx, listAuditEntries, arg.GroupID, arg.PageOffset, arg.PageLimit)
 	if err != nil {
 		return nil, err
 	}
@@ -66,6 +75,7 @@ func (q *Queries) ListAuditEntries(ctx context.Context, groupID string) ([]ListA
 			&i.Before,
 			&i.After,
 			&i.CreatedAt,
+			&i.FullCount,
 		); err != nil {
 			return nil, err
 		}

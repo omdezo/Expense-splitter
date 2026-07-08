@@ -44,8 +44,8 @@ test-unit: | $(GO_CACHE) ## Run only the fast co-located unit tests (no DB/HTTP)
 test-integration: | $(GO_CACHE) ## Run DB-backed integration tests (needs the stack up)
 	$(GO_RUN) sh -c 'pkgs=$$(go list ./test/integration/... 2>/dev/null); [ -n "$$pkgs" ] && go test $$pkgs || echo "no integration tests yet"'
 
-test-e2e: | $(GO_CACHE) ## Run end-to-end tests (needs the stack up)
-	$(GO_RUN) sh -c 'pkgs=$$(go list ./test/e2e/... 2>/dev/null); [ -n "$$pkgs" ] && go test $$pkgs || echo "no e2e tests yet"'
+test-e2e: | $(GO_CACHE) ## Run the full API end-to-end suite against the running stack (make up first)
+	docker run --rm --network host -u "$$(id -u):$$(id -g)" -e HOME=/tmp -e GOCACHE=/cache/build -e GOMODCACHE=/cache/mod -e E2E_BASE_URL=$${E2E_BASE_URL:-http://localhost:8080} -v "$(GO_CACHE)":/cache -v "$(CURDIR)/server":/app -w /app golang:1.25 go test -v -count=1 ./test/e2e/...
 
 test-pkg: | $(GO_CACHE) ## Run one area's tests verbosely (e.g. make test-pkg PKG=./services/ RUN=DecideGroupRole)
 	$(GO_RUN) go test -v $(PKG) $(if $(RUN),-run '$(RUN)')

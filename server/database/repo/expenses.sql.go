@@ -106,7 +106,8 @@ func (q *Queries) ListExpenseAllocations(ctx context.Context, groupID string) ([
 
 const listExpenses = `-- name: ListExpenses :many
 SELECT e.id, m.user_id AS paid_by, e.amount_baisa, e.category, e.description,
-       e.occurred_on::text AS occurred_on, e.split_type, e.created_at
+       e.occurred_on::text AS occurred_on, e.split_type, e.created_at,
+       COUNT(*) OVER()::bigint AS full_count
 FROM expenses e
 JOIN memberships m ON m.id = e.paid_by
 WHERE e.group_id = $1::uuid
@@ -115,13 +116,16 @@ WHERE e.group_id = $1::uuid
   AND ($3::uuid IS NULL OR m.user_id = $3::uuid)
   AND ($4::text IS NULL OR e.description ILIKE ('%' || $4::text || '%') ESCAPE '\')
 ORDER BY e.occurred_on, e.created_at
+LIMIT $6::int OFFSET $5::int
 `
 
 type ListExpensesParams struct {
-	GroupID  string                 `json:"group_id"`
-	Category *types.ExpenseCategory `json:"category"`
-	PaidBy   *string                `json:"paid_by"`
-	Search   *string                `json:"search"`
+	GroupID    string                 `json:"group_id"`
+	Category   *types.ExpenseCategory `json:"category"`
+	PaidBy     *string                `json:"paid_by"`
+	Search     *string                `json:"search"`
+	PageOffset int32                  `json:"page_offset"`
+	PageLimit  int32                  `json:"page_limit"`
 }
 
 type ListExpensesRow struct {
@@ -133,6 +137,7 @@ type ListExpensesRow struct {
 	OccurredOn  string                `json:"occurred_on"`
 	SplitType   types.SplitType       `json:"split_type"`
 	CreatedAt   time.Time             `json:"created_at"`
+	FullCount   int64                 `json:"full_count"`
 }
 
 func (q *Queries) ListExpenses(ctx context.Context, arg ListExpensesParams) ([]ListExpensesRow, error) {
@@ -141,6 +146,8 @@ func (q *Queries) ListExpenses(ctx context.Context, arg ListExpensesParams) ([]L
 		arg.Category,
 		arg.PaidBy,
 		arg.Search,
+		arg.PageOffset,
+		arg.PageLimit,
 	)
 	if err != nil {
 		return nil, err
@@ -158,6 +165,7 @@ func (q *Queries) ListExpenses(ctx context.Context, arg ListExpensesParams) ([]L
 			&i.OccurredOn,
 			&i.SplitType,
 			&i.CreatedAt,
+			&i.FullCount,
 		); err != nil {
 			return nil, err
 		}

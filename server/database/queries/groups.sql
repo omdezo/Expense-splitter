@@ -52,9 +52,11 @@ WHERE id = @id::uuid AND status = 'closed';
 -- name: ListAllGroups :many
 SELECT g.id, g.name, g.start_date, g.end_date, g.status, g.created_by, g.created_at,
        COALESCE((SELECT COUNT(*) FROM memberships m WHERE m.group_id = g.id AND m.status = 'approved'), 0)::bigint AS member_count,
-       COALESCE((SELECT SUM(e.amount_baisa) FROM expenses e WHERE e.group_id = g.id AND e.deleted_at IS NULL), 0)::bigint AS total_spent
+       COALESCE((SELECT SUM(e.amount_baisa) FROM expenses e WHERE e.group_id = g.id AND e.deleted_at IS NULL), 0)::bigint AS total_spent,
+       COUNT(*) OVER()::bigint AS full_count
 FROM groups g
-ORDER BY g.created_at DESC;
+ORDER BY g.created_at DESC
+LIMIT @page_limit::int OFFSET @page_offset::int;
 
 -- name: GroupHasHistory :one
 SELECT (EXISTS(SELECT 1 FROM expenses WHERE group_id = @id::uuid)

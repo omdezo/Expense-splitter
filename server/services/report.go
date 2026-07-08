@@ -25,7 +25,8 @@ func (s *Services) SettlementReport(ctx context.Context, id types.Identity, grou
 		return nil, types.NewConflictError("the report is available once the group is fully settled")
 	}
 
-	expenses, err := s.q.ListExpenses(ctx, repo.ListExpensesParams{GroupID: groupID})
+	// The report always covers the FULL expense list, not a page.
+	expenses, err := s.q.ListExpenses(ctx, repo.ListExpensesParams{GroupID: groupID, PageLimit: 100000})
 	if err != nil {
 		s.logger.Errorw("report: list expenses", "error", err)
 		return nil, types.NewServerError()
