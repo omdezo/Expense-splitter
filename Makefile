@@ -81,6 +81,9 @@ kc-token: ## Fetch a Keycloak access token (override KC_USER / KC_PASS; defaults
 		-d username=$${KC_USER:-admin@expense-splitter.local} \
 		-d password=$${KC_PASS:-admin} | sed -e 's/.*"access_token":"//' -e 's/".*//'
 
+demo: ## Seed a 2-member demo group (closed, one pending payment) and print all the ids
+	@bash scripts/demo.sh
+
 kc-logs: ## Tail Keycloak container logs
 	docker compose logs -f keycloak
 

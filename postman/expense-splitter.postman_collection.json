@@ -1356,7 +1356,12 @@
                 "type": "text/javascript",
                 "exec": [
                   "const j = pm.response.json();",
-                  "if (j && j.payments && j.payments.length) { pm.collectionVariables.set('paymentId', j.payments[0].id); console.log(j.settled_count + ' of ' + j.total_count + ' settled'); }",
+                  "if (j && j.payments && j.payments.length) {",
+                  "  pm.collectionVariables.set('paymentId', j.payments[0].id);",
+                  "  console.log(j.settled_count + ' of ' + j.total_count + ' settled | paymentId = ' + j.payments[0].id);",
+                  "} else if (j && j.payments) {",
+                  "  console.warn('PLAN IS EMPTY: ' + (j.note || 'no payments') + ' — {{paymentId}} was NOT set, so folder 9 requests will fail with invalid payment id. You need a group with 2+ members where someone overpaid (or run `make demo`).');",
+                  "}",
                   "pm.test('status is 200', () => pm.response.to.have.status(200));"
                 ]
               }
