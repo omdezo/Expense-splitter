@@ -28,6 +28,32 @@ var base = func() string {
 
 var httpc = &http.Client{Timeout: 20 * time.Second}
 
+// actors maps tokens to readable names so every logged call shows WHO made it.
+var actors = map[string]string{}
+
+func actor(token string) string {
+	if token == "" {
+		return "public"
+	}
+	if n, ok := actors[token]; ok {
+		return n
+	}
+	return "unknown"
+}
+
+// snippet compacts a response body to one readable log line.
+func snippet(raw []byte) string {
+	s := strings.Join(strings.Fields(string(raw)), " ")
+	r := []rune(s)
+	if len(r) > 220 {
+		return string(r[:220]) + " …"
+	}
+	if s == "" {
+		return "(empty body)"
+	}
+	return s
+}
+
 func call(t *testing.T, method, path, token string, body any) (int, map[string]any, []byte) {
 	t.Helper()
 	var rd io.Reader
@@ -56,14 +82,17 @@ func call(t *testing.T, method, path, token string, body any) (int, map[string]a
 	raw, _ := io.ReadAll(resp.Body)
 	m := map[string]any{}
 	_ = json.Unmarshal(raw, &m)
+	t.Logf("%s %s  [as %s]", method, path, actor(token))
+	t.Logf("   -> %d  %s", resp.StatusCode, snippet(raw))
 	return resp.StatusCode, m, raw
 }
 
 func want(t *testing.T, got, exp int, what string, payload map[string]any) {
 	t.Helper()
 	if got != exp {
-		t.Fatalf("%s: status %d, want %d (%v)", what, got, exp, payload)
+		t.Fatalf("   FAIL %s: expected status %d, got %d (%v)", what, exp, got, payload)
 	}
+	t.Logf("   OK   %s: status %d as expected", what, exp)
 }
 
 func str(m map[string]any, k string) string {
@@ -84,7 +113,9 @@ func login(t *testing.T, email, password string) (string, string) {
 	t.Helper()
 	code, m, _ := call(t, "POST", "/auth/login", "", map[string]string{"email": email, "password": password})
 	want(t, code, 200, "login "+email, m)
-	return str(m, "access_token"), str(m, "refresh_token")
+	tok := str(m, "access_token")
+	actors[tok] = strings.SplitN(email, "@", 2)[0]
+	return tok, str(m, "refresh_token")
 }
 
 func register(t *testing.T, admin, email, name string) string {
@@ -124,6 +155,8 @@ func uploadProof(t *testing.T, token, paymentID string, file []byte) (int, map[s
 	raw, _ := io.ReadAll(resp.Body)
 	m := map[string]any{}
 	_ = json.Unmarshal(raw, &m)
+	t.Logf("POST /payments/%s/proof  [as %s]  (multipart image, %d bytes)", paymentID, actor(token), len(file))
+	t.Logf("   -> %d  %s", resp.StatusCode, snippet(raw))
 	return resp.StatusCode, m
 }
 
@@ -150,6 +183,7 @@ func TestEndToEnd(t *testing.T) {
 		code, m, _ := call(t, "POST", "/auth/login", "", map[string]string{"email": "admin@expense-splitter.local", "password": "admin"})
 		want(t, code, 200, "admin login", m)
 		admin = str(m, "access_token")
+		actors[admin] = "global-admin"
 		u, _ := m["user"].(map[string]any)
 		if u == nil || u["is_global_admin"] != true {
 			t.Fatalf("login must return the global-admin user, got %v", m["user"])
@@ -168,6 +202,7 @@ func TestEndToEnd(t *testing.T) {
 		code, m, _ := call(t, "POST", "/auth/refresh", "", map[string]string{"refresh_token": refresh})
 		want(t, code, 200, "refresh", m)
 		newAccess, newRefresh := str(m, "access_token"), str(m, "refresh_token")
+		actors[newAccess] = "payer (refreshed session)"
 		code, m, _ = call(t, "GET", "/me", newAccess, nil)
 		want(t, code, 200, "me with refreshed token", m)
 		code, _, _ = call(t, "POST", "/auth/logout", "", map[string]string{"refresh_token": newRefresh})
@@ -361,9 +396,12 @@ func TestEndToEnd(t *testing.T) {
 		}
 		defer resp.Body.Close()
 		raw, _ := io.ReadAll(resp.Body)
+		t.Logf("GET /groups/%s/report.pdf  [as %s]", groupID, actor(payerTok))
+		t.Logf("   -> %d  %s, %d bytes, starts with %q", resp.StatusCode, resp.Header.Get("Content-Type"), len(raw), raw[:min(8, len(raw))])
 		if resp.StatusCode != 200 || !bytes.HasPrefix(raw, []byte("%PDF")) {
-			t.Fatalf("report: status %d, prefix %q", resp.StatusCode, raw[:min(8, len(raw))])
+			t.Fatalf("   FAIL report: expected 200 + %%PDF prefix")
 		}
+		t.Log("   OK   settlement report is a real PDF")
 	})
 
 	t.Run("group3: image proof, dispute loop, nudges, member mgmt", func(t *testing.T) {
@@ -423,9 +461,12 @@ func TestEndToEnd(t *testing.T) {
 		}
 		raw, _ := io.ReadAll(resp.Body)
 		resp.Body.Close()
+		t.Logf("GET /payments/%s/proof/image  [as %s]", pay3, actor(payerTok))
+		t.Logf("   -> %d  %s, %d bytes (uploaded %d)", resp.StatusCode, resp.Header.Get("Content-Type"), len(raw), len(pngBytes))
 		if resp.StatusCode != 200 || !bytes.Equal(raw, pngBytes) {
-			t.Fatalf("image round-trip failed: status %d, %d bytes vs %d", resp.StatusCode, len(raw), len(pngBytes))
+			t.Fatalf("   FAIL image round-trip: bytes differ")
 		}
+		t.Log("   OK   image round-trip: downloaded bytes identical to the upload")
 
 		code, m, _ = call(t, "POST", "/payments/"+pay3+"/dispute", payerTok, nil)
 		want(t, code, 200, "creditor dispute", m)
