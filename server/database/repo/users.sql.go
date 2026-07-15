@@ -229,7 +229,9 @@ func (q *Queries) ListUsers(ctx context.Context, arg ListUsersParams) ([]ListUse
 const seedGlobalAdmin = `-- name: SeedGlobalAdmin :execrows
 INSERT INTO users (email, is_global_admin, verification_status)
 VALUES ($1, true, 'verified')
-ON CONFLICT (email) DO NOTHING
+ON CONFLICT (email) DO UPDATE
+	SET is_global_admin = true, verification_status = 'verified'
+	WHERE users.is_global_admin = false OR users.verification_status <> 'verified'
 `
 
 func (q *Queries) SeedGlobalAdmin(ctx context.Context, email string) (int64, error) {

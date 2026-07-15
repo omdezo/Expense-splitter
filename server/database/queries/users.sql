@@ -54,4 +54,6 @@ DELETE FROM users WHERE id = @id::uuid;
 -- name: SeedGlobalAdmin :execrows
 INSERT INTO users (email, is_global_admin, verification_status)
 VALUES (@email, true, 'verified')
-ON CONFLICT (email) DO NOTHING;
+ON CONFLICT (email) DO UPDATE
+	SET is_global_admin = true, verification_status = 'verified'
+	WHERE users.is_global_admin = false OR users.verification_status <> 'verified';
