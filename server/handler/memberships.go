@@ -10,6 +10,22 @@ import (
 	"expense-splitter/types"
 )
 
+// JoinGroup godoc
+//
+//	@Summary		Request to join a group
+//	@Description	Verified users only. Redeems a group's shareable invite token to create a `requested` membership. There is no open self-join — the group-admin must approve before you are a member.
+//	@Tags			membership
+//	@Accept			json
+//	@Produce		json
+//	@Security		BearerAuth
+//	@Param			body	body		types.JoinGroupRequest	true	"invite_token"
+//	@Success		201		{object}	types.MembershipView	"membership in status requested"
+//	@Failure		400		{object}	types.apiError			"invalid body or token"
+//	@Failure		401		{object}	types.apiError			"missing or invalid token"
+//	@Failure		403		{object}	types.apiError			"caller is not verified"
+//	@Failure		404		{object}	types.apiError			"invite token does not match a group"
+//	@Failure		409		{object}	types.apiError			"already a member or already requested"
+//	@Router			/groups/join [post]
 func (h *Handler) JoinGroup(c echo.Context) error {
 	identity := middleware.GetIdentity(c)
 	if identity == nil {
@@ -32,6 +48,20 @@ func (h *Handler) JoinGroup(c echo.Context) error {
 	return c.JSON(http.StatusCreated, v)
 }
 
+// ListJoinRequests godoc
+//
+//	@Summary		List pending join requests
+//	@Description	Group-admin only. The queue of users who redeemed the invite token and are waiting on a decision.
+//	@Tags			membership
+//	@Produce		json
+//	@Security		BearerAuth
+//	@Param			id	path		string					true	"group id"	Format(uuid)
+//	@Success		200	{array}		types.MembershipView	"pending requests"
+//	@Failure		400	{object}	types.apiError			"invalid group id"
+//	@Failure		401	{object}	types.apiError			"missing or invalid token"
+//	@Failure		403	{object}	types.apiError			"not this group's admin"
+//	@Failure		404	{object}	types.apiError			"group not found"
+//	@Router			/groups/{id}/requests [get]
 func (h *Handler) ListJoinRequests(c echo.Context) error {
 	identity := middleware.GetIdentity(c)
 	if identity == nil {
@@ -51,10 +81,55 @@ func (h *Handler) ListJoinRequests(c echo.Context) error {
 	return c.JSON(http.StatusOK, list)
 }
 
+// ApproveMember godoc
+//
+//	@Summary		Approve a join request
+//	@Description	Group-admin only. Moves the membership `requested` -> `approved`. Only approved members count toward the fair-share split.
+//	@Tags			membership
+//	@Produce		json
+//	@Security		BearerAuth
+//	@Param			id		path		string					true	"group id"	Format(uuid)
+//	@Param			userId	path		string					true	"user id"	Format(uuid)
+//	@Success		200		{object}	types.MembershipView	"the approved membership"
+//	@Failure		400		{object}	types.apiError			"invalid group or user id"
+//	@Failure		401		{object}	types.apiError			"missing or invalid token"
+//	@Failure		403		{object}	types.apiError			"not this group's admin"
+//	@Failure		404		{object}	types.apiError			"membership not found"
+//	@Router			/groups/{id}/members/{userId}/approve [post]
 func (h *Handler) ApproveMember(c echo.Context) error { return h.decideMember(c, true) }
 
+// RejectMember godoc
+//
+//	@Summary		Reject a join request
+//	@Description	Group-admin only. Moves the membership `requested` -> `rejected`.
+//	@Tags			membership
+//	@Produce		json
+//	@Security		BearerAuth
+//	@Param			id		path		string					true	"group id"	Format(uuid)
+//	@Param			userId	path		string					true	"user id"	Format(uuid)
+//	@Success		200		{object}	types.MembershipView	"the rejected membership"
+//	@Failure		400		{object}	types.apiError			"invalid group or user id"
+//	@Failure		401		{object}	types.apiError			"missing or invalid token"
+//	@Failure		403		{object}	types.apiError			"not this group's admin"
+//	@Failure		404		{object}	types.apiError			"membership not found"
+//	@Router			/groups/{id}/members/{userId}/reject [post]
 func (h *Handler) RejectMember(c echo.Context) error { return h.decideMember(c, false) }
 
+// PromoteToAdmin godoc
+//
+//	@Summary		Hand the group-admin role to another member
+//	@Description	Group-admin only. Transfers the role to another approved member — there is always **exactly one** group-admin, so the caller is demoted to member in the same transaction. Logged to the audit trail.
+//	@Tags			membership
+//	@Produce		json
+//	@Security		BearerAuth
+//	@Param			id		path		string					true	"group id"	Format(uuid)
+//	@Param			userId	path		string					true	"the new admin's user id"	Format(uuid)
+//	@Success		200		{object}	types.MembershipView	"the new admin's membership"
+//	@Failure		400		{object}	types.apiError			"invalid group or user id"
+//	@Failure		401		{object}	types.apiError			"missing or invalid token"
+//	@Failure		403		{object}	types.apiError			"not this group's admin"
+//	@Failure		404		{object}	types.apiError			"target is not an approved member"
+//	@Router			/groups/{id}/members/{userId}/promote [post]
 func (h *Handler) PromoteToAdmin(c echo.Context) error {
 	identity := middleware.GetIdentity(c)
 	if identity == nil {
@@ -78,6 +153,22 @@ func (h *Handler) PromoteToAdmin(c echo.Context) error {
 	return c.JSON(http.StatusOK, v)
 }
 
+// RemoveMember godoc
+//
+//	@Summary		Remove a member from a group
+//	@Description	Group-admin only. A member with **any recorded expense cannot be removed** — doing so would corrupt the split.
+//	@Tags			membership
+//	@Produce		json
+//	@Security		BearerAuth
+//	@Param			id		path	string	true	"group id"	Format(uuid)
+//	@Param			userId	path	string	true	"user id"	Format(uuid)
+//	@Success		204		"member removed"
+//	@Failure		400		{object}	types.apiError	"invalid group or user id"
+//	@Failure		401		{object}	types.apiError	"missing or invalid token"
+//	@Failure		403		{object}	types.apiError	"not this group's admin"
+//	@Failure		404		{object}	types.apiError	"membership not found"
+//	@Failure		409		{object}	types.apiError	"member has recorded expenses"
+//	@Router			/groups/{id}/members/{userId} [delete]
 func (h *Handler) RemoveMember(c echo.Context) error {
 	identity := middleware.GetIdentity(c)
 	if identity == nil {

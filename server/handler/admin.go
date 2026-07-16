@@ -10,6 +10,21 @@ import (
 	"expense-splitter/types"
 )
 
+// AdminListUsers godoc
+//
+//	@Summary		List all users
+//	@Description	Global admin only. Filter by verification status to work the approval queue. Returns a `{total, limit, offset, items}` envelope.
+//	@Tags			admin
+//	@Produce		json
+//	@Security		BearerAuth
+//	@Param			status	query		string		false	"filter by verification status"	Enums(registered, pending_verification, verified, rejected)
+//	@Param			limit	query		int			false	"page size (1-200)"	default(50)
+//	@Param			offset	query		int			false	"rows to skip"	default(0)
+//	@Success		200		{object}	types.Page	"paginated users"
+//	@Failure		400		{object}	types.apiError	"invalid status or paging"
+//	@Failure		401		{object}	types.apiError	"missing or invalid token"
+//	@Failure		403		{object}	types.apiError	"global admin only"
+//	@Router			/admin/users [get]
 func (h *Handler) AdminListUsers(c echo.Context) error {
 	identity := middleware.GetIdentity(c)
 	if identity == nil {
@@ -29,6 +44,20 @@ func (h *Handler) AdminListUsers(c echo.Context) error {
 	return c.JSON(http.StatusOK, page)
 }
 
+// AdminGetUser godoc
+//
+//	@Summary		Get one user's full detail
+//	@Description	Global admin only. The account plus its group memberships and roles.
+//	@Tags			admin
+//	@Produce		json
+//	@Security		BearerAuth
+//	@Param			id	path		string					true	"user id"	Format(uuid)
+//	@Success		200	{object}	types.AdminUserDetail	"the user and their memberships"
+//	@Failure		400	{object}	types.apiError			"invalid user id"
+//	@Failure		401	{object}	types.apiError			"missing or invalid token"
+//	@Failure		403	{object}	types.apiError			"global admin only"
+//	@Failure		404	{object}	types.apiError			"user not found"
+//	@Router			/admin/users/{id} [get]
 func (h *Handler) AdminGetUser(c echo.Context) error {
 	identity := middleware.GetIdentity(c)
 	if identity == nil {
@@ -48,6 +77,21 @@ func (h *Handler) AdminGetUser(c echo.Context) error {
 	return c.JSON(http.StatusOK, detail)
 }
 
+// AdminDeleteUser godoc
+//
+//	@Summary		Delete a user
+//	@Description	Global admin only. Refused when the user has recorded expenses or is party to a payment — removing them would corrupt a split.
+//	@Tags			admin
+//	@Produce		json
+//	@Security		BearerAuth
+//	@Param			id	path	string	true	"user id"	Format(uuid)
+//	@Success		204	"user deleted"
+//	@Failure		400	{object}	types.apiError	"invalid user id"
+//	@Failure		401	{object}	types.apiError	"missing or invalid token"
+//	@Failure		403	{object}	types.apiError	"global admin only"
+//	@Failure		404	{object}	types.apiError	"user not found"
+//	@Failure		409	{object}	types.apiError	"user has expenses or payments"
+//	@Router			/admin/users/{id} [delete]
 func (h *Handler) AdminDeleteUser(c echo.Context) error {
 	identity := middleware.GetIdentity(c)
 	if identity == nil {
@@ -66,6 +110,20 @@ func (h *Handler) AdminDeleteUser(c echo.Context) error {
 	return c.NoContent(http.StatusNoContent)
 }
 
+// AdminListGroups godoc
+//
+//	@Summary		List all groups
+//	@Description	Global admin only. Every group in the system, regardless of membership. Returns a `{total, limit, offset, items}` envelope.
+//	@Tags			admin
+//	@Produce		json
+//	@Security		BearerAuth
+//	@Param			limit	query		int			false	"page size (1-200)"	default(50)
+//	@Param			offset	query		int			false	"rows to skip"	default(0)
+//	@Success		200		{object}	types.Page	"paginated groups"
+//	@Failure		400		{object}	types.apiError	"invalid paging"
+//	@Failure		401		{object}	types.apiError	"missing or invalid token"
+//	@Failure		403		{object}	types.apiError	"global admin only"
+//	@Router			/admin/groups [get]
 func (h *Handler) AdminListGroups(c echo.Context) error {
 	identity := middleware.GetIdentity(c)
 	if identity == nil {
@@ -85,6 +143,21 @@ func (h *Handler) AdminListGroups(c echo.Context) error {
 	return c.JSON(http.StatusOK, page)
 }
 
+// AdminDeleteGroup godoc
+//
+//	@Summary		Delete a group
+//	@Description	Global admin only, and **pristine groups only** — a group with any recorded expense or computed payment cannot be deleted.
+//	@Tags			admin
+//	@Produce		json
+//	@Security		BearerAuth
+//	@Param			id	path	string	true	"group id"	Format(uuid)
+//	@Success		204	"group deleted"
+//	@Failure		400	{object}	types.apiError	"invalid group id"
+//	@Failure		401	{object}	types.apiError	"missing or invalid token"
+//	@Failure		403	{object}	types.apiError	"global admin only"
+//	@Failure		404	{object}	types.apiError	"group not found"
+//	@Failure		409	{object}	types.apiError	"group is not pristine"
+//	@Router			/admin/groups/{id} [delete]
 func (h *Handler) AdminDeleteGroup(c echo.Context) error {
 	identity := middleware.GetIdentity(c)
 	if identity == nil {

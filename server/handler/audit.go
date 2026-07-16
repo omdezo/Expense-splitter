@@ -10,6 +10,22 @@ import (
 	"expense-splitter/types"
 )
 
+// GetGroupAudit godoc
+//
+//	@Summary		Read a group's audit trail
+//	@Description	Admins only. The full history: expense edits with **before/after** amounts, role transfers, membership decisions, and every payment-state transition. Returns a `{total, limit, offset, items}` envelope.
+//	@Tags			ops
+//	@Produce		json
+//	@Security		BearerAuth
+//	@Param			id		path		string		true	"group id"	Format(uuid)
+//	@Param			limit	query		int			false	"page size (1-200)"	default(50)
+//	@Param			offset	query		int			false	"rows to skip"	default(0)
+//	@Success		200		{object}	types.Page	"paginated audit entries"
+//	@Failure		400		{object}	types.apiError	"invalid id or paging"
+//	@Failure		401		{object}	types.apiError	"missing or invalid token"
+//	@Failure		403		{object}	types.apiError	"not an admin of this group"
+//	@Failure		404		{object}	types.apiError	"group not found"
+//	@Router			/groups/{id}/audit [get]
 func (h *Handler) GetGroupAudit(c echo.Context) error {
 	identity := middleware.GetIdentity(c)
 	if identity == nil {

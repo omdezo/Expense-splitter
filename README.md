@@ -120,6 +120,7 @@ make seed                      # create the default global admin
 | Service | URL | Notes |
 |---|---|---|
 | **API server** | http://localhost:8080 | |
+| **Swagger UI** | http://localhost:8080/swagger/index.html | interactive API docs — try every endpoint from the browser |
 | Postgres (app) | localhost:5433 -> 5432 | |
 | Keycloak | http://localhost:8081 | admin console: `admin` / `admin` |
 | MinIO (proofs) | http://localhost:9001 | console: `minioadmin` / `minioadmin` |
@@ -140,6 +141,12 @@ make demo    # seeds a 2-member group (closed, one pending payment) and prints e
 ---
 
 ## API
+
+> ### [-> Swagger UI: `http://localhost:8080/swagger/index.html`](http://localhost:8080/swagger/index.html)
+>
+> Every endpoint below is documented and **executable** from the browser once the stack is up. To use the authenticated ones: run `POST /auth/login` (try `admin@expense-splitter.local` / `admin`), copy the `access_token` from the response, click **Authorize**, and paste `Bearer <access_token>`.
+>
+> The spec is generated from annotations on the handlers, and the schemas are derived from the real Go structs — so it can't silently drift from the code. Regenerate with `make swagger`.
 
 **Public (no token):** `POST /auth/register` · `POST /auth/login` · `POST /auth/refresh` · `POST /auth/logout` · `GET /public/groups/:token` (share-token status) · `GET /health`.
 Everything else needs `Authorization: Bearer <token>` from `/auth/login`.
@@ -255,9 +262,10 @@ Unit tests are co-located with the code; the settlement algorithm, the 80-char t
 │   ├── realm-export.json       # auto-imported realm: client + seed users
 │   └── themes/                 # login/account/email theme (en + ar)
 └── server/
-    ├── main.go
+    ├── main.go                 # entrypoint + the general OpenAPI annotations
     ├── cmd/                    # cobra: serve, seed
     ├── config/                 # env config (incl. Keycloak)
+    ├── docs/                   # generated OpenAPI spec (make swagger; do not edit)
     ├── database/
     │   ├── migration/schema/   # goose migrations (run at startup)
     │   ├── queries/            # ALL SQL lives here (sqlc input)

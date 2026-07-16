@@ -9,6 +9,17 @@ import (
 	"expense-splitter/types"
 )
 
+// Register godoc
+//
+//	@Summary		Link the caller's token to a local user row
+//	@Description	Idempotent. Creates the local row for the bearer token's subject, or links/returns the existing one. Login does this automatically — this endpoint exists for tokens minted outside the login flow.
+//	@Tags			account
+//	@Produce		json
+//	@Security		BearerAuth
+//	@Success		201	{object}	types.Principal	"the linked local account"
+//	@Failure		401	{object}	types.apiError	"missing or invalid token"
+//	@Failure		409	{object}	types.apiError	"email already registered to another subject"
+//	@Router			/register [post]
 func (h *Handler) Register(c echo.Context) error {
 	identity := middleware.GetIdentity(c)
 	if identity == nil {

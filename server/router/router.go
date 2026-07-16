@@ -3,6 +3,7 @@ package router
 import (
 	"github.com/labstack/echo/v4"
 	echomw "github.com/labstack/echo/v4/middleware"
+	echoSwagger "github.com/swaggo/echo-swagger"
 
 	"expense-splitter/handler"
 	appmw "expense-splitter/middleware"
@@ -11,6 +12,10 @@ import (
 func New(h *handler.Handler, auth *appmw.Auth) *echo.Echo {
 	e := echo.New()
 	e.Use(echomw.Logger(), echomw.Recover())
+
+	// Interactive API docs. The spec is generated from the handler annotations
+	// by `make swagger` into server/docs.
+	e.GET("/swagger/*", echoSwagger.WrapHandler)
 
 	e.GET("/health", h.Health)
 

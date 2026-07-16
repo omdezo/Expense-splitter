@@ -1,0 +1,2380 @@
+basePath: /
+definitions:
+  services.MeResponse:
+    properties:
+      email:
+        type: string
+      email_verified:
+        type: boolean
+      local_user:
+        $ref: '#/definitions/types.Principal'
+      name:
+        type: string
+      preferred_username:
+        type: string
+      subject:
+        type: string
+    type: object
+  types.AdminUserDetail:
+    properties:
+      created_at:
+        type: string
+      email:
+        type: string
+      id:
+        type: string
+      is_global_admin:
+        type: boolean
+      linked:
+        type: boolean
+      memberships:
+        items:
+          $ref: '#/definitions/types.UserMembershipView'
+        type: array
+      verification_status:
+        $ref: '#/definitions/types.VerificationStatus'
+    type: object
+  types.CloseResult:
+    properties:
+      group_id:
+        type: string
+      plan:
+        items:
+          $ref: '#/definitions/types.Transfer'
+        type: array
+      snapshot:
+        $ref: '#/definitions/types.SettlementSnapshot'
+    type: object
+  types.CreateGroupRequest:
+    properties:
+      admin_user_id:
+        type: string
+      end_date:
+        type: string
+      expected_member_count:
+        type: integer
+      name:
+        type: string
+      start_date:
+        type: string
+    type: object
+  types.Expense:
+    properties:
+      amount_baisa:
+        type: integer
+      category:
+        $ref: '#/definitions/types.ExpenseCategory'
+      created_at:
+        type: string
+      description:
+        type: string
+      group_id:
+        type: string
+      id:
+        type: string
+      occurred_on:
+        type: string
+      paid_by:
+        type: string
+      shares:
+        items:
+          $ref: '#/definitions/types.ShareInput'
+        type: array
+      split_type:
+        $ref: '#/definitions/types.SplitType'
+    type: object
+  types.ExpenseCategory:
+    enum:
+    - lodging
+    - fuel
+    - food
+    - transport
+    - other
+    type: string
+    x-enum-varnames:
+    - CategoryLodging
+    - CategoryFuel
+    - CategoryFood
+    - CategoryTransport
+    - CategoryOther
+  types.Group:
+    properties:
+      created_at:
+        type: string
+      created_by:
+        type: string
+      end_date:
+        type: string
+      expected_member_count:
+        type: integer
+      id:
+        type: string
+      invite_token:
+        type: string
+      name:
+        type: string
+      start_date:
+        type: string
+      status:
+        $ref: '#/definitions/types.GroupStatus'
+      status_token:
+        type: string
+    type: object
+  types.GroupDetail:
+    properties:
+      created_at:
+        type: string
+      created_by:
+        type: string
+      end_date:
+        type: string
+      expected_member_count:
+        type: integer
+      id:
+        type: string
+      invite_token:
+        type: string
+      members:
+        items:
+          $ref: '#/definitions/types.MembershipView'
+        type: array
+      name:
+        type: string
+      start_date:
+        type: string
+      status:
+        $ref: '#/definitions/types.GroupStatus'
+      status_token:
+        type: string
+    type: object
+  types.GroupListItem:
+    properties:
+      created_at:
+        type: string
+      created_by:
+        type: string
+      end_date:
+        type: string
+      expected_member_count:
+        type: integer
+      id:
+        type: string
+      invite_token:
+        type: string
+      membership_status:
+        $ref: '#/definitions/types.MembershipStatus'
+      name:
+        type: string
+      role:
+        $ref: '#/definitions/types.MembershipRole'
+      start_date:
+        type: string
+      status:
+        $ref: '#/definitions/types.GroupStatus'
+      status_token:
+        type: string
+    type: object
+  types.GroupStatus:
+    enum:
+    - open
+    - closed
+    - settled
+    type: string
+    x-enum-varnames:
+    - GroupOpen
+    - GroupClosed
+    - GroupSettled
+  types.GroupSummary:
+    properties:
+      end_date:
+        type: string
+      group_id:
+        type: string
+      member_count:
+        type: integer
+      members:
+        items:
+          $ref: '#/definitions/types.MemberSummary'
+        type: array
+      name:
+        type: string
+      spend_per_category:
+        additionalProperties:
+          format: int64
+          type: integer
+        type: object
+      start_date:
+        type: string
+      status:
+        $ref: '#/definitions/types.GroupStatus'
+      total_spent:
+        type: integer
+    type: object
+  types.JoinGroupRequest:
+    properties:
+      invite_token:
+        type: string
+    type: object
+  types.LoginRequest:
+    properties:
+      email:
+        type: string
+      password:
+        type: string
+    type: object
+  types.LogoutRequest:
+    properties:
+      refresh_token:
+        type: string
+    type: object
+  types.MemberBalance:
+    properties:
+      fair_share:
+        type: integer
+      net:
+        type: integer
+      paid:
+        type: integer
+      user_id:
+        type: string
+    type: object
+  types.MemberSummary:
+    properties:
+      email:
+        type: string
+      fair_share:
+        type: integer
+      net:
+        type: integer
+      paid:
+        type: integer
+      user_id:
+        type: string
+    type: object
+  types.MembershipRole:
+    enum:
+    - group_admin
+    - member
+    type: string
+    x-enum-varnames:
+    - RoleGroupAdmin
+    - RoleMember
+  types.MembershipStatus:
+    enum:
+    - requested
+    - approved
+    - rejected
+    type: string
+    x-enum-varnames:
+    - MembershipRequested
+    - MembershipApproved
+    - MembershipRejected
+  types.MembershipView:
+    properties:
+      created_at:
+        type: string
+      email:
+        type: string
+      group_id:
+        type: string
+      role:
+        $ref: '#/definitions/types.MembershipRole'
+      status:
+        $ref: '#/definitions/types.MembershipStatus'
+      user_id:
+        type: string
+    type: object
+  types.Nudge:
+    properties:
+      amount_baisa:
+        type: integer
+      payment_id:
+        type: string
+      recipient_user_id:
+        type: string
+      type:
+        $ref: '#/definitions/types.NudgeType'
+    type: object
+  types.NudgeRunResult:
+    properties:
+      group_id:
+        type: string
+      sent:
+        items:
+          $ref: '#/definitions/types.Nudge'
+        type: array
+      skipped:
+        type: integer
+      threshold_hours:
+        type: integer
+    type: object
+  types.NudgeType:
+    enum:
+    - debtor
+    - creditor
+    type: string
+    x-enum-varnames:
+    - NudgeDebtor
+    - NudgeCreditor
+  types.Page:
+    properties:
+      items: {}
+      limit:
+        type: integer
+      offset:
+        type: integer
+      total:
+        type: integer
+    type: object
+  types.PaymentStatus:
+    enum:
+    - pending
+    - proof_submitted
+    - creditor_confirmed
+    - disputed
+    - settled
+    type: string
+    x-enum-varnames:
+    - PaymentPending
+    - PaymentProofSubmitted
+    - PaymentCreditorConfirmed
+    - PaymentDisputed
+    - PaymentSettled
+  types.PaymentView:
+    properties:
+      amount_baisa:
+        type: integer
+      created_at:
+        type: string
+      from:
+        type: string
+      id:
+        type: string
+      status:
+        $ref: '#/definitions/types.PaymentStatus'
+      to:
+        type: string
+    type: object
+  types.Principal:
+    properties:
+      email:
+        type: string
+      id:
+        type: string
+      is_global_admin:
+        type: boolean
+      verification_status:
+        $ref: '#/definitions/types.VerificationStatus'
+    type: object
+  types.ProofType:
+    enum:
+    - image
+    - text
+    type: string
+    x-enum-varnames:
+    - ProofImage
+    - ProofText
+  types.ProofView:
+    properties:
+      byte_size:
+        type: integer
+      created_at:
+        type: string
+      note:
+        type: string
+      payment_id:
+        type: string
+      proof_type:
+        $ref: '#/definitions/types.ProofType'
+      sha256:
+        type: string
+    type: object
+  types.PublicGroupStatus:
+    properties:
+      member_count:
+        type: integer
+      name:
+        type: string
+      status:
+        $ref: '#/definitions/types.GroupStatus'
+      total_spent:
+        type: integer
+    type: object
+  types.RecordExpenseRequest:
+    properties:
+      amount_baisa:
+        type: integer
+      category:
+        $ref: '#/definitions/types.ExpenseCategory'
+      description:
+        type: string
+      occurred_on:
+        type: string
+      shares:
+        description: |-
+          Shares is optional: absent/empty means an equal split across all
+          approved members at settlement. Weight defaults to 1 when omitted.
+        items:
+          $ref: '#/definitions/types.ShareInput'
+        type: array
+    type: object
+  types.RefreshRequest:
+    properties:
+      refresh_token:
+        type: string
+    type: object
+  types.RegisterRequest:
+    properties:
+      email:
+        type: string
+      name:
+        type: string
+      password:
+        type: string
+    type: object
+  types.SettlementPlanResponse:
+    properties:
+      group_id:
+        type: string
+      group_status:
+        $ref: '#/definitions/types.GroupStatus'
+      note:
+        description: Note explains an empty plan (e.g. every net balance was already
+          zero).
+        type: string
+      payments:
+        items:
+          $ref: '#/definitions/types.PaymentView'
+        type: array
+      settled_count:
+        type: integer
+      snapshot:
+        allOf:
+        - $ref: '#/definitions/types.SettlementSnapshot'
+        description: |-
+          Snapshot is the state settlement was computed over: total spent, member
+          count, and each member's paid / fair share / net.
+      total_count:
+        type: integer
+    type: object
+  types.SettlementSnapshot:
+    properties:
+      member_count:
+        type: integer
+      members:
+        items:
+          $ref: '#/definitions/types.MemberBalance'
+        type: array
+      spend_per_category:
+        additionalProperties:
+          format: int64
+          type: integer
+        type: object
+      total_spent:
+        type: integer
+    type: object
+  types.ShareInput:
+    properties:
+      user_id:
+        type: string
+      weight:
+        type: integer
+    type: object
+  types.SplitType:
+    enum:
+    - equal
+    - subset
+    - weighted
+    type: string
+    x-enum-varnames:
+    - SplitEqual
+    - SplitSubset
+    - SplitWeighted
+  types.SubmitProofRequest:
+    properties:
+      note:
+        type: string
+    type: object
+  types.TokenResponse:
+    properties:
+      access_token:
+        type: string
+      expires_in:
+        type: integer
+      refresh_token:
+        type: string
+      token_type:
+        type: string
+      user:
+        $ref: '#/definitions/types.Principal'
+    type: object
+  types.Transfer:
+    properties:
+      amount:
+        type: integer
+      from:
+        type: string
+      to:
+        type: string
+    type: object
+  types.UpdateExpenseRequest:
+    properties:
+      amount_baisa:
+        type: integer
+      category:
+        $ref: '#/definitions/types.ExpenseCategory'
+      description:
+        type: string
+      occurred_on:
+        type: string
+      shares:
+        description: |-
+          Shares is optional: absent/empty means an equal split across all
+          approved members at settlement. Weight defaults to 1 when omitted.
+        items:
+          $ref: '#/definitions/types.ShareInput'
+        type: array
+    type: object
+  types.UpdateGroupRequest:
+    properties:
+      end_date:
+        type: string
+      expected_member_count:
+        type: integer
+      name:
+        type: string
+      start_date:
+        type: string
+    type: object
+  types.UserMembershipView:
+    properties:
+      created_at:
+        type: string
+      group_id:
+        type: string
+      group_name:
+        type: string
+      role:
+        $ref: '#/definitions/types.MembershipRole'
+      status:
+        $ref: '#/definitions/types.MembershipStatus'
+    type: object
+  types.VerificationStatus:
+    enum:
+    - registered
+    - pending_verification
+    - verified
+    - rejected
+    type: string
+    x-enum-varnames:
+    - VerificationRegistered
+    - VerificationPending
+    - VerificationVerified
+    - VerificationRejected
+  types.apiError:
+    properties:
+      code:
+        type: string
+      message:
+        type: string
+    type: object
+host: localhost:8080
+info:
+  contact: {}
+  description: |-
+    Shared-expense settlement tracker for group trips. Members record what they paid; closing a group computes each member's fair share and the minimum set of payments that squares everyone up. Money moves off-platform — each computed payment is tracked through a two-key confirmation flow (debtor proves, creditor attests, admin finalizes).
+
+    All amounts are integer **baisa** (1.000 OMR = 1000). There are no floats in the money path.
+
+    **Authenticating here:** call `POST /auth/login` (try `admin@expense-splitter.local` / `admin`), copy the `access_token` from the response, click **Authorize** above and paste `Bearer <access_token>`.
+  title: Expense Splitter API
+  version: "1.0"
+paths:
+  /admin/groups:
+    get:
+      description: Global admin only. Every group in the system, regardless of membership.
+        Returns a `{total, limit, offset, items}` envelope.
+      parameters:
+      - default: 50
+        description: page size (1-200)
+        in: query
+        name: limit
+        type: integer
+      - default: 0
+        description: rows to skip
+        in: query
+        name: offset
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: paginated groups
+          schema:
+            $ref: '#/definitions/types.Page'
+        "400":
+          description: invalid paging
+          schema:
+            $ref: '#/definitions/types.apiError'
+        "401":
+          description: missing or invalid token
+          schema:
+            $ref: '#/definitions/types.apiError'
+        "403":
+          description: global admin only
+          schema:
+            $ref: '#/definitions/types.apiError'
+      security:
+      - BearerAuth: []
+      summary: List all groups
+      tags:
+      - admin
+  /admin/groups/{id}:
+    delete:
+      description: Global admin only, and **pristine groups only** — a group with
+        any recorded expense or computed payment cannot be deleted.
+      parameters:
+      - description: group id
+        format: uuid
+        in: path
+        name: id
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "204":
+          description: group deleted
+        "400":
+          description: invalid group id
+          schema:
+            $ref: '#/definitions/types.apiError'
+        "401":
+          description: missing or invalid token
+          schema:
+            $ref: '#/definitions/types.apiError'
+        "403":
+          description: global admin only
+          schema:
+            $ref: '#/definitions/types.apiError'
+        "404":
+          description: group not found
+          schema:
+            $ref: '#/definitions/types.apiError'
+        "409":
+          description: group is not pristine
+          schema:
+            $ref: '#/definitions/types.apiError'
+      security:
+      - BearerAuth: []
+      summary: Delete a group
+      tags:
+      - admin
+  /admin/users:
+    get:
+      description: Global admin only. Filter by verification status to work the approval
+        queue. Returns a `{total, limit, offset, items}` envelope.
+      parameters:
+      - description: filter by verification status
+        enum:
+        - registered
+        - pending_verification
+        - verified
+        - rejected
+        in: query
+        name: status
+        type: string
+      - default: 50
+        description: page size (1-200)
+        in: query
+        name: limit
+        type: integer
+      - default: 0
+        description: rows to skip
+        in: query
+        name: offset
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: paginated users
+          schema:
+            $ref: '#/definitions/types.Page'
+        "400":
+          description: invalid status or paging
+          schema:
+            $ref: '#/definitions/types.apiError'
+        "401":
+          description: missing or invalid token
+          schema:
+            $ref: '#/definitions/types.apiError'
+        "403":
+          description: global admin only
+          schema:
+            $ref: '#/definitions/types.apiError'
+      security:
+      - BearerAuth: []
+      summary: List all users
+      tags:
+      - admin
+  /admin/users/{id}:
+    delete:
+      description: Global admin only. Refused when the user has recorded expenses
+        or is party to a payment — removing them would corrupt a split.
+      parameters:
+      - description: user id
+        format: uuid
+        in: path
+        name: id
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "204":
+          description: user deleted
+        "400":
+          description: invalid user id
+          schema:
+            $ref: '#/definitions/types.apiError'
+        "401":
+          description: missing or invalid token
+          schema:
+            $ref: '#/definitions/types.apiError'
+        "403":
+          description: global admin only
+          schema:
+            $ref: '#/definitions/types.apiError'
+        "404":
+          description: user not found
+          schema:
+            $ref: '#/definitions/types.apiError'
+        "409":
+          description: user has expenses or payments
+          schema:
+            $ref: '#/definitions/types.apiError'
+      security:
+      - BearerAuth: []
+      summary: Delete a user
+      tags:
+      - admin
+    get:
+      description: Global admin only. The account plus its group memberships and roles.
+      parameters:
+      - description: user id
+        format: uuid
+        in: path
+        name: id
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: the user and their memberships
+          schema:
+            $ref: '#/definitions/types.AdminUserDetail'
+        "400":
+          description: invalid user id
+          schema:
+            $ref: '#/definitions/types.apiError'
+        "401":
+          description: missing or invalid token
+          schema:
+            $ref: '#/definitions/types.apiError'
+        "403":
+          description: global admin only
+          schema:
+            $ref: '#/definitions/types.apiError'
+        "404":
+          description: user not found
+          schema:
+            $ref: '#/definitions/types.apiError'
+      security:
+      - BearerAuth: []
+      summary: Get one user's full detail
+      tags:
+      - admin
+  /admin/users/{id}/approve:
+    post:
+      description: Global admin only. Marks the target account `verified`, unlocking
+        group participation.
+      parameters:
+      - description: user id
+        format: uuid
+        in: path
+        name: id
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: the verified account
+          schema:
+            $ref: '#/definitions/types.Principal'
+        "401":
+          description: missing or invalid token
+          schema:
+            $ref: '#/definitions/types.apiError'
+        "403":
+          description: global admin only
+          schema:
+            $ref: '#/definitions/types.apiError'
+        "404":
+          description: user not found
+          schema:
+            $ref: '#/definitions/types.apiError'
+      security:
+      - BearerAuth: []
+      summary: Approve a user's verification
+      tags:
+      - admin
+  /admin/users/{id}/reject:
+    post:
+      description: Global admin only. Marks the target account `rejected` — it stays
+        blocked from joining groups or recording expenses.
+      parameters:
+      - description: user id
+        format: uuid
+        in: path
+        name: id
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: the rejected account
+          schema:
+            $ref: '#/definitions/types.Principal'
+        "401":
+          description: missing or invalid token
+          schema:
+            $ref: '#/definitions/types.apiError'
+        "403":
+          description: global admin only
+          schema:
+            $ref: '#/definitions/types.apiError'
+        "404":
+          description: user not found
+          schema:
+            $ref: '#/definitions/types.apiError'
+      security:
+      - BearerAuth: []
+      summary: Reject a user's verification
+      tags:
+      - admin
+  /auth/login:
+    post:
+      consumes:
+      - application/json
+      description: Exchanges email + password for an access token (~5 min) and a refresh
+        token. Also returns your local `user` row, which is auto-provisioned/linked
+        on first login. Copy the `access_token` into the **Authorize** button to use
+        the rest of this page.
+      parameters:
+      - description: email + password
+        in: body
+        name: body
+        required: true
+        schema:
+          $ref: '#/definitions/types.LoginRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: access_token, refresh_token, user
+          schema:
+            $ref: '#/definitions/types.TokenResponse'
+        "400":
+          description: invalid body
+          schema:
+            $ref: '#/definitions/types.apiError'
+        "401":
+          description: bad credentials
+          schema:
+            $ref: '#/definitions/types.apiError'
+      summary: Log in
+      tags:
+      - auth
+  /auth/logout:
+    post:
+      consumes:
+      - application/json
+      description: Revokes the session behind the given refresh token. Idempotent
+        — logging out an already-revoked session still succeeds.
+      parameters:
+      - description: refresh_token
+        in: body
+        name: body
+        required: true
+        schema:
+          $ref: '#/definitions/types.LogoutRequest'
+      produces:
+      - application/json
+      responses:
+        "204":
+          description: session revoked
+        "400":
+          description: invalid body
+          schema:
+            $ref: '#/definitions/types.apiError'
+      summary: Log out
+      tags:
+      - auth
+  /auth/refresh:
+    post:
+      consumes:
+      - application/json
+      description: Renews the access/refresh token pair without re-sending the password.
+        Fails once the session has been revoked by logout.
+      parameters:
+      - description: refresh_token
+        in: body
+        name: body
+        required: true
+        schema:
+          $ref: '#/definitions/types.RefreshRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: a fresh token pair
+          schema:
+            $ref: '#/definitions/types.TokenResponse'
+        "400":
+          description: invalid body
+          schema:
+            $ref: '#/definitions/types.apiError'
+        "401":
+          description: refresh token is invalid or expired
+          schema:
+            $ref: '#/definitions/types.apiError'
+      summary: Refresh a session
+      tags:
+      - auth
+  /auth/register:
+    post:
+      consumes:
+      - application/json
+      description: Creates the Keycloak identity and the linked local user row. The
+        new account starts at verification_status `registered` — it must be verified
+        before it can join groups or record expenses.
+      parameters:
+      - description: email, password, name
+        in: body
+        name: body
+        required: true
+        schema:
+          $ref: '#/definitions/types.RegisterRequest'
+      produces:
+      - application/json
+      responses:
+        "201":
+          description: the created account
+          schema:
+            $ref: '#/definitions/types.Principal'
+        "400":
+          description: invalid body / weak password
+          schema:
+            $ref: '#/definitions/types.apiError'
+        "409":
+          description: email already registered
+          schema:
+            $ref: '#/definitions/types.apiError'
+      summary: Sign up a new user
+      tags:
+      - auth
+  /groups:
+    get:
+      description: Every group where the caller has an approved membership, with their
+        role in each.
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: your groups
+          schema:
+            items:
+              $ref: '#/definitions/types.GroupListItem'
+            type: array
+        "401":
+          description: missing or invalid token
+          schema:
+            $ref: '#/definitions/types.apiError'
+      security:
+      - BearerAuth: []
+      summary: List the groups you belong to
+      tags:
+      - groups
+    post:
+      consumes:
+      - application/json
+      description: |-
+        Any verified user can create a group and becomes its group-admin. The global admin may instead create one *on behalf of others* by setting `group_admin_id` — they then assign that member as group-admin and are not part of the trip or the split.
+
+        `expected_member_count` is a planning hint only and has **zero** effect on any calculation — fair shares always divide by the count of actual members at settlement.
+      parameters:
+      - description: name, trip dates, optional group_admin_id
+        in: body
+        name: body
+        required: true
+        schema:
+          $ref: '#/definitions/types.CreateGroupRequest'
+      produces:
+      - application/json
+      responses:
+        "201":
+          description: the created group, including its invite token
+          schema:
+            $ref: '#/definitions/types.Group'
+        "400":
+          description: invalid body / bad date range
+          schema:
+            $ref: '#/definitions/types.apiError'
+        "401":
+          description: missing or invalid token
+          schema:
+            $ref: '#/definitions/types.apiError'
+        "403":
+          description: caller is not verified
+          schema:
+            $ref: '#/definitions/types.apiError'
+      security:
+      - BearerAuth: []
+      summary: Create a trip group
+      tags:
+      - groups
+  /groups/{id}:
+    get:
+      description: Members and admins only. Returns trip metadata plus the member
+        list — this is the non-financial view; use `/groups/{id}/summary` for the
+        money.
+      parameters:
+      - description: group id
+        format: uuid
+        in: path
+        name: id
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: metadata + members
+          schema:
+            $ref: '#/definitions/types.GroupDetail'
+        "400":
+          description: invalid group id
+          schema:
+            $ref: '#/definitions/types.apiError'
+        "401":
+          description: missing or invalid token
+          schema:
+            $ref: '#/definitions/types.apiError'
+        "403":
+          description: not a member of this group
+          schema:
+            $ref: '#/definitions/types.apiError'
+        "404":
+          description: group not found
+          schema:
+            $ref: '#/definitions/types.apiError'
+      security:
+      - BearerAuth: []
+      summary: Get a group's metadata and members
+      tags:
+      - groups
+    patch:
+      consumes:
+      - application/json
+      description: Group-admin only, and only while the group is **open**. Changes
+        name, trip dates, or the planning hint.
+      parameters:
+      - description: group id
+        format: uuid
+        in: path
+        name: id
+        required: true
+        type: string
+      - description: fields to change
+        in: body
+        name: body
+        required: true
+        schema:
+          $ref: '#/definitions/types.UpdateGroupRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: the updated group
+          schema:
+            $ref: '#/definitions/types.Group'
+        "400":
+          description: invalid id or body
+          schema:
+            $ref: '#/definitions/types.apiError'
+        "401":
+          description: missing or invalid token
+          schema:
+            $ref: '#/definitions/types.apiError'
+        "403":
+          description: not this group's admin
+          schema:
+            $ref: '#/definitions/types.apiError'
+        "404":
+          description: group not found
+          schema:
+            $ref: '#/definitions/types.apiError'
+        "409":
+          description: group is closed
+          schema:
+            $ref: '#/definitions/types.apiError'
+      security:
+      - BearerAuth: []
+      summary: Update group metadata
+      tags:
+      - groups
+  /groups/{id}/audit:
+    get:
+      description: 'Admins only. The full history: expense edits with **before/after**
+        amounts, role transfers, membership decisions, and every payment-state transition.
+        Returns a `{total, limit, offset, items}` envelope.'
+      parameters:
+      - description: group id
+        format: uuid
+        in: path
+        name: id
+        required: true
+        type: string
+      - default: 50
+        description: page size (1-200)
+        in: query
+        name: limit
+        type: integer
+      - default: 0
+        description: rows to skip
+        in: query
+        name: offset
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: paginated audit entries
+          schema:
+            $ref: '#/definitions/types.Page'
+        "400":
+          description: invalid id or paging
+          schema:
+            $ref: '#/definitions/types.apiError'
+        "401":
+          description: missing or invalid token
+          schema:
+            $ref: '#/definitions/types.apiError'
+        "403":
+          description: not an admin of this group
+          schema:
+            $ref: '#/definitions/types.apiError'
+        "404":
+          description: group not found
+          schema:
+            $ref: '#/definitions/types.apiError'
+      security:
+      - BearerAuth: []
+      summary: Read a group's audit trail
+      tags:
+      - ops
+  /groups/{id}/close:
+    post:
+      description: |-
+        Group-admin only. **This is the pivotal action:** it freezes expenses, computes each member's fair share, and generates the payment plan — the minimum set of transfers that zeroes every balance.
+
+        Runs exactly once, under a row lock, over a consistent snapshot: a concurrent second close gets 409, and expenses in flight during the close are blocked and then rejected.
+      parameters:
+      - description: group id
+        format: uuid
+        in: path
+        name: id
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: the computed plan
+          schema:
+            $ref: '#/definitions/types.CloseResult'
+        "400":
+          description: invalid group id
+          schema:
+            $ref: '#/definitions/types.apiError'
+        "401":
+          description: missing or invalid token
+          schema:
+            $ref: '#/definitions/types.apiError'
+        "403":
+          description: not this group's admin
+          schema:
+            $ref: '#/definitions/types.apiError'
+        "404":
+          description: group not found
+          schema:
+            $ref: '#/definitions/types.apiError'
+        "409":
+          description: group is already closed
+          schema:
+            $ref: '#/definitions/types.apiError'
+      security:
+      - BearerAuth: []
+      summary: Close the group and compute settlement
+      tags:
+      - groups
+  /groups/{id}/expenses:
+    get:
+      description: |-
+        Members and admins only. Filter by category or payer, and search descriptions with `q`. Returns a `{total, limit, offset, items}` envelope where `items` is an array of expenses.
+
+        Descriptions are truncated to 80 characters, cut on a word boundary so the last word stays whole (e.g. `"dinner at the ..."`).
+      parameters:
+      - description: group id
+        format: uuid
+        in: path
+        name: id
+        required: true
+        type: string
+      - description: filter by category
+        enum:
+        - lodging
+        - fuel
+        - food
+        - transport
+        - other
+        in: query
+        name: category
+        type: string
+      - description: filter by payer's user id
+        format: uuid
+        in: query
+        name: paid_by
+        type: string
+      - description: search in description
+        in: query
+        name: q
+        type: string
+      - default: 50
+        description: page size (1-200)
+        in: query
+        name: limit
+        type: integer
+      - default: 0
+        description: rows to skip
+        in: query
+        name: offset
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: paginated expenses
+          schema:
+            $ref: '#/definitions/types.Page'
+        "400":
+          description: invalid id, filter, or paging
+          schema:
+            $ref: '#/definitions/types.apiError'
+        "401":
+          description: missing or invalid token
+          schema:
+            $ref: '#/definitions/types.apiError'
+        "403":
+          description: not a member of this group
+          schema:
+            $ref: '#/definitions/types.apiError'
+        "404":
+          description: group not found
+          schema:
+            $ref: '#/definitions/types.apiError'
+      security:
+      - BearerAuth: []
+      summary: List a group's expenses
+      tags:
+      - expenses
+    post:
+      consumes:
+      - application/json
+      description: |-
+        Approved members only, while the group is **open**. `paid_by` must equal the caller — you can only record what *you* paid.
+
+        `amount` is integer **baisa** (1.000 OMR = 1000) and must be positive. `occurred_on` must fall inside the trip's date range. `category` is one of: lodging, fuel, food, transport, other.
+      parameters:
+      - description: group id
+        format: uuid
+        in: path
+        name: id
+        required: true
+        type: string
+      - description: amount (baisa), category, description, occurred_on, paid_by
+        in: body
+        name: body
+        required: true
+        schema:
+          $ref: '#/definitions/types.RecordExpenseRequest'
+      produces:
+      - application/json
+      responses:
+        "201":
+          description: the recorded expense
+          schema:
+            $ref: '#/definitions/types.Expense'
+        "400":
+          description: bad amount/date/category, or paid_by is not the caller
+          schema:
+            $ref: '#/definitions/types.apiError'
+        "401":
+          description: missing or invalid token
+          schema:
+            $ref: '#/definitions/types.apiError'
+        "403":
+          description: not an approved member
+          schema:
+            $ref: '#/definitions/types.apiError'
+        "404":
+          description: group not found
+          schema:
+            $ref: '#/definitions/types.apiError'
+        "409":
+          description: group is closed
+          schema:
+            $ref: '#/definitions/types.apiError'
+      security:
+      - BearerAuth: []
+      summary: Record an expense you paid
+      tags:
+      - expenses
+  /groups/{id}/expenses/{expenseId}:
+    delete:
+      description: You may delete **only your own** expenses, and only while the group
+        is open.
+      parameters:
+      - description: group id
+        format: uuid
+        in: path
+        name: id
+        required: true
+        type: string
+      - description: expense id
+        format: uuid
+        in: path
+        name: expenseId
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "204":
+          description: expense deleted
+        "400":
+          description: invalid group or expense id
+          schema:
+            $ref: '#/definitions/types.apiError'
+        "401":
+          description: missing or invalid token
+          schema:
+            $ref: '#/definitions/types.apiError'
+        "403":
+          description: not your expense
+          schema:
+            $ref: '#/definitions/types.apiError'
+        "404":
+          description: expense not found
+          schema:
+            $ref: '#/definitions/types.apiError'
+        "409":
+          description: group is closed
+          schema:
+            $ref: '#/definitions/types.apiError'
+      security:
+      - BearerAuth: []
+      summary: Delete an expense
+      tags:
+      - expenses
+    patch:
+      consumes:
+      - application/json
+      description: You may edit **only your own** expenses, and only while the group
+        is open. Any change to the amount is written to the audit trail with **before/after**
+        values.
+      parameters:
+      - description: group id
+        format: uuid
+        in: path
+        name: id
+        required: true
+        type: string
+      - description: expense id
+        format: uuid
+        in: path
+        name: expenseId
+        required: true
+        type: string
+      - description: fields to change
+        in: body
+        name: body
+        required: true
+        schema:
+          $ref: '#/definitions/types.UpdateExpenseRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: the updated expense
+          schema:
+            $ref: '#/definitions/types.Expense'
+        "400":
+          description: invalid ids or body
+          schema:
+            $ref: '#/definitions/types.apiError'
+        "401":
+          description: missing or invalid token
+          schema:
+            $ref: '#/definitions/types.apiError'
+        "403":
+          description: not your expense
+          schema:
+            $ref: '#/definitions/types.apiError'
+        "404":
+          description: expense not found
+          schema:
+            $ref: '#/definitions/types.apiError'
+        "409":
+          description: group is closed
+          schema:
+            $ref: '#/definitions/types.apiError'
+      security:
+      - BearerAuth: []
+      summary: Update an expense
+      tags:
+      - expenses
+  /groups/{id}/members/{userId}:
+    delete:
+      description: Group-admin only. A member with **any recorded expense cannot be
+        removed** — doing so would corrupt the split.
+      parameters:
+      - description: group id
+        format: uuid
+        in: path
+        name: id
+        required: true
+        type: string
+      - description: user id
+        format: uuid
+        in: path
+        name: userId
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "204":
+          description: member removed
+        "400":
+          description: invalid group or user id
+          schema:
+            $ref: '#/definitions/types.apiError'
+        "401":
+          description: missing or invalid token
+          schema:
+            $ref: '#/definitions/types.apiError'
+        "403":
+          description: not this group's admin
+          schema:
+            $ref: '#/definitions/types.apiError'
+        "404":
+          description: membership not found
+          schema:
+            $ref: '#/definitions/types.apiError'
+        "409":
+          description: member has recorded expenses
+          schema:
+            $ref: '#/definitions/types.apiError'
+      security:
+      - BearerAuth: []
+      summary: Remove a member from a group
+      tags:
+      - membership
+  /groups/{id}/members/{userId}/approve:
+    post:
+      description: Group-admin only. Moves the membership `requested` -> `approved`.
+        Only approved members count toward the fair-share split.
+      parameters:
+      - description: group id
+        format: uuid
+        in: path
+        name: id
+        required: true
+        type: string
+      - description: user id
+        format: uuid
+        in: path
+        name: userId
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: the approved membership
+          schema:
+            $ref: '#/definitions/types.MembershipView'
+        "400":
+          description: invalid group or user id
+          schema:
+            $ref: '#/definitions/types.apiError'
+        "401":
+          description: missing or invalid token
+          schema:
+            $ref: '#/definitions/types.apiError'
+        "403":
+          description: not this group's admin
+          schema:
+            $ref: '#/definitions/types.apiError'
+        "404":
+          description: membership not found
+          schema:
+            $ref: '#/definitions/types.apiError'
+      security:
+      - BearerAuth: []
+      summary: Approve a join request
+      tags:
+      - membership
+  /groups/{id}/members/{userId}/promote:
+    post:
+      description: Group-admin only. Transfers the role to another approved member
+        — there is always **exactly one** group-admin, so the caller is demoted to
+        member in the same transaction. Logged to the audit trail.
+      parameters:
+      - description: group id
+        format: uuid
+        in: path
+        name: id
+        required: true
+        type: string
+      - description: the new admin's user id
+        format: uuid
+        in: path
+        name: userId
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: the new admin's membership
+          schema:
+            $ref: '#/definitions/types.MembershipView'
+        "400":
+          description: invalid group or user id
+          schema:
+            $ref: '#/definitions/types.apiError'
+        "401":
+          description: missing or invalid token
+          schema:
+            $ref: '#/definitions/types.apiError'
+        "403":
+          description: not this group's admin
+          schema:
+            $ref: '#/definitions/types.apiError'
+        "404":
+          description: target is not an approved member
+          schema:
+            $ref: '#/definitions/types.apiError'
+      security:
+      - BearerAuth: []
+      summary: Hand the group-admin role to another member
+      tags:
+      - membership
+  /groups/{id}/members/{userId}/reject:
+    post:
+      description: Group-admin only. Moves the membership `requested` -> `rejected`.
+      parameters:
+      - description: group id
+        format: uuid
+        in: path
+        name: id
+        required: true
+        type: string
+      - description: user id
+        format: uuid
+        in: path
+        name: userId
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: the rejected membership
+          schema:
+            $ref: '#/definitions/types.MembershipView'
+        "400":
+          description: invalid group or user id
+          schema:
+            $ref: '#/definitions/types.apiError'
+        "401":
+          description: missing or invalid token
+          schema:
+            $ref: '#/definitions/types.apiError'
+        "403":
+          description: not this group's admin
+          schema:
+            $ref: '#/definitions/types.apiError'
+        "404":
+          description: membership not found
+          schema:
+            $ref: '#/definitions/types.apiError'
+      security:
+      - BearerAuth: []
+      summary: Reject a join request
+      tags:
+      - membership
+  /groups/{id}/nudges:
+    post:
+      description: Admins only. Nudges whoever currently holds the ball on each payment
+        that has sat idle longer than `hours`. **Idempotent** — re-running inside
+        the same window will not double-notify.
+      parameters:
+      - description: group id
+        format: uuid
+        in: path
+        name: id
+        required: true
+        type: string
+      - default: 24
+        description: idle threshold in hours (0-720)
+        in: query
+        name: hours
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: who was nudged, and who was skipped
+          schema:
+            $ref: '#/definitions/types.NudgeRunResult'
+        "400":
+          description: invalid group id or hours
+          schema:
+            $ref: '#/definitions/types.apiError'
+        "401":
+          description: missing or invalid token
+          schema:
+            $ref: '#/definitions/types.apiError'
+        "403":
+          description: not an admin of this group
+          schema:
+            $ref: '#/definitions/types.apiError'
+        "404":
+          description: group not found
+          schema:
+            $ref: '#/definitions/types.apiError'
+      security:
+      - BearerAuth: []
+      summary: Send reminders for stalled payments
+      tags:
+      - ops
+  /groups/{id}/report.pdf:
+    get:
+      description: Available only once **every** computed payment has reached `settled`.
+        Returns the final report as a PDF attachment.
+      parameters:
+      - description: group id
+        format: uuid
+        in: path
+        name: id
+        required: true
+        type: string
+      produces:
+      - application/pdf
+      responses:
+        "200":
+          description: the settlement report PDF
+          schema:
+            type: file
+        "400":
+          description: invalid group id
+          schema:
+            $ref: '#/definitions/types.apiError'
+        "401":
+          description: missing or invalid token
+          schema:
+            $ref: '#/definitions/types.apiError'
+        "403":
+          description: not a member of this group
+          schema:
+            $ref: '#/definitions/types.apiError'
+        "404":
+          description: group not found
+          schema:
+            $ref: '#/definitions/types.apiError'
+        "409":
+          description: group is not fully settled yet
+          schema:
+            $ref: '#/definitions/types.apiError'
+      security:
+      - BearerAuth: []
+      summary: Download the settlement report PDF
+      tags:
+      - settlement
+  /groups/{id}/requests:
+    get:
+      description: Group-admin only. The queue of users who redeemed the invite token
+        and are waiting on a decision.
+      parameters:
+      - description: group id
+        format: uuid
+        in: path
+        name: id
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: pending requests
+          schema:
+            items:
+              $ref: '#/definitions/types.MembershipView'
+            type: array
+        "400":
+          description: invalid group id
+          schema:
+            $ref: '#/definitions/types.apiError'
+        "401":
+          description: missing or invalid token
+          schema:
+            $ref: '#/definitions/types.apiError'
+        "403":
+          description: not this group's admin
+          schema:
+            $ref: '#/definitions/types.apiError'
+        "404":
+          description: group not found
+          schema:
+            $ref: '#/definitions/types.apiError'
+      security:
+      - BearerAuth: []
+      summary: List pending join requests
+      tags:
+      - membership
+  /groups/{id}/settlement:
+    get:
+      description: |-
+        Members and admins, **closed groups only**. The full `{from, to, amount, status}` list produced at close, plus an "N of M settled" progress count. All payments start `pending`.
+
+        The plan is the minimum-ish set of transfers from a greedy largest-debtor/largest-creditor match — at most `n-1` transfers, and it always reconciles to zero.
+      parameters:
+      - description: group id
+        format: uuid
+        in: path
+        name: id
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: the payment plan + progress
+          schema:
+            $ref: '#/definitions/types.SettlementPlanResponse'
+        "400":
+          description: invalid group id
+          schema:
+            $ref: '#/definitions/types.apiError'
+        "401":
+          description: missing or invalid token
+          schema:
+            $ref: '#/definitions/types.apiError'
+        "403":
+          description: not a member of this group
+          schema:
+            $ref: '#/definitions/types.apiError'
+        "404":
+          description: group not found
+          schema:
+            $ref: '#/definitions/types.apiError'
+        "409":
+          description: group is still open — close it first
+          schema:
+            $ref: '#/definitions/types.apiError'
+      security:
+      - BearerAuth: []
+      summary: Get the computed payment plan
+      tags:
+      - settlement
+  /groups/{id}/summary:
+    get:
+      description: 'Members and admins. Trip name and dates, member count, total spent,
+        spend per category, and per member: total **paid**, their **fair share**,
+        and their **net balance** (paid - fair share). Works on open groups too —
+        it is the live picture of who is up and who is down.'
+      parameters:
+      - description: group id
+        format: uuid
+        in: path
+        name: id
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: totals, per-category spend, per-member balances
+          schema:
+            $ref: '#/definitions/types.GroupSummary'
+        "400":
+          description: invalid group id
+          schema:
+            $ref: '#/definitions/types.apiError'
+        "401":
+          description: missing or invalid token
+          schema:
+            $ref: '#/definitions/types.apiError'
+        "403":
+          description: not a member of this group
+          schema:
+            $ref: '#/definitions/types.apiError'
+        "404":
+          description: group not found
+          schema:
+            $ref: '#/definitions/types.apiError'
+      security:
+      - BearerAuth: []
+      summary: Get a group's financial summary
+      tags:
+      - settlement
+  /groups/join:
+    post:
+      consumes:
+      - application/json
+      description: Verified users only. Redeems a group's shareable invite token to
+        create a `requested` membership. There is no open self-join — the group-admin
+        must approve before you are a member.
+      parameters:
+      - description: invite_token
+        in: body
+        name: body
+        required: true
+        schema:
+          $ref: '#/definitions/types.JoinGroupRequest'
+      produces:
+      - application/json
+      responses:
+        "201":
+          description: membership in status requested
+          schema:
+            $ref: '#/definitions/types.MembershipView'
+        "400":
+          description: invalid body or token
+          schema:
+            $ref: '#/definitions/types.apiError'
+        "401":
+          description: missing or invalid token
+          schema:
+            $ref: '#/definitions/types.apiError'
+        "403":
+          description: caller is not verified
+          schema:
+            $ref: '#/definitions/types.apiError'
+        "404":
+          description: invite token does not match a group
+          schema:
+            $ref: '#/definitions/types.apiError'
+        "409":
+          description: already a member or already requested
+          schema:
+            $ref: '#/definitions/types.apiError'
+      security:
+      - BearerAuth: []
+      summary: Request to join a group
+      tags:
+      - membership
+  /health:
+    get:
+      description: Liveness probe. Reports `ok` only when the database is reachable;
+        returns 503 otherwise.
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: '{\"status\":\"ok\",\"database\":\"up\"}'
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "503":
+          description: '{\"status\":\"down\",\"database\":\"down\"}'
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+      summary: Health check
+      tags:
+      - public
+  /me:
+    get:
+      description: Returns the claims from your Keycloak token plus the linked `local_user`
+        row (id, verification status, global-admin flag).
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: token claims + local user
+          schema:
+            $ref: '#/definitions/services.MeResponse'
+        "401":
+          description: missing or invalid token
+          schema:
+            $ref: '#/definitions/types.apiError'
+      security:
+      - BearerAuth: []
+      summary: Who am I
+      tags:
+      - account
+  /payments/{id}/confirm:
+    post:
+      description: '**Key 2 of 2.** The creditor — the person owed — confirms the
+        money actually arrived, moving `proof_submitted` -> `creditor_confirmed`.
+        This is the *only* transition that produces `creditor_confirmed`, and only
+        the creditor may call it.'
+      parameters:
+      - description: payment id
+        format: uuid
+        in: path
+        name: id
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: payment now creditor_confirmed
+          schema:
+            $ref: '#/definitions/types.PaymentView'
+        "400":
+          description: invalid payment id
+          schema:
+            $ref: '#/definitions/types.apiError'
+        "401":
+          description: missing or invalid token
+          schema:
+            $ref: '#/definitions/types.apiError'
+        "403":
+          description: you are not this payment's creditor
+          schema:
+            $ref: '#/definitions/types.apiError'
+        "404":
+          description: payment not found
+          schema:
+            $ref: '#/definitions/types.apiError'
+        "409":
+          description: payment is not awaiting your confirmation
+          schema:
+            $ref: '#/definitions/types.apiError'
+      security:
+      - BearerAuth: []
+      summary: Attest that you received the money (creditor)
+      tags:
+      - payments
+  /payments/{id}/dispute:
+    post:
+      description: The creditor says the money never arrived, moving the payment to
+        `disputed`. A disputed payment can **never** be reported settled — the debtor
+        must re-submit proof and both keys must run again.
+      parameters:
+      - description: payment id
+        format: uuid
+        in: path
+        name: id
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: payment now disputed
+          schema:
+            $ref: '#/definitions/types.PaymentView'
+        "400":
+          description: invalid payment id
+          schema:
+            $ref: '#/definitions/types.apiError'
+        "401":
+          description: missing or invalid token
+          schema:
+            $ref: '#/definitions/types.apiError'
+        "403":
+          description: you are not this payment's creditor
+          schema:
+            $ref: '#/definitions/types.apiError'
+        "404":
+          description: payment not found
+          schema:
+            $ref: '#/definitions/types.apiError'
+        "409":
+          description: payment is not in a disputable state
+          schema:
+            $ref: '#/definitions/types.apiError'
+      security:
+      - BearerAuth: []
+      summary: Deny receiving the money (creditor)
+      tags:
+      - payments
+  /payments/{id}/finalize:
+    post:
+      description: |-
+        The group-admin (own group) or global admin (any group) marks a `creditor_confirmed` payment as **settled** — the only transition that produces `settled`, and it is terminal.
+
+        A debtor can never settle their own payment, **even if they are also the group-admin**. The global admin's override may finalize any non-settled payment and can do nothing else.
+      parameters:
+      - description: payment id
+        format: uuid
+        in: path
+        name: id
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: payment now settled
+          schema:
+            $ref: '#/definitions/types.PaymentView'
+        "400":
+          description: invalid payment id
+          schema:
+            $ref: '#/definitions/types.apiError'
+        "401":
+          description: missing or invalid token
+          schema:
+            $ref: '#/definitions/types.apiError'
+        "403":
+          description: not an admin for this payment's group, or you are the debtor
+          schema:
+            $ref: '#/definitions/types.apiError'
+        "404":
+          description: payment not found
+          schema:
+            $ref: '#/definitions/types.apiError'
+        "409":
+          description: payment has not been confirmed by the creditor
+          schema:
+            $ref: '#/definitions/types.apiError'
+      security:
+      - BearerAuth: []
+      summary: Finalize a payment as settled (admin)
+      tags:
+      - payments
+  /payments/{id}/proof:
+    get:
+      description: Visible to the debtor, the creditor, and admins. Returns the note
+        and/or the image's metadata — content type, size, and sha256. Use `/proof/image`
+        for the bytes.
+      parameters:
+      - description: payment id
+        format: uuid
+        in: path
+        name: id
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: proof note and/or image metadata
+          schema:
+            $ref: '#/definitions/types.ProofView'
+        "400":
+          description: invalid payment id
+          schema:
+            $ref: '#/definitions/types.apiError'
+        "401":
+          description: missing or invalid token
+          schema:
+            $ref: '#/definitions/types.apiError'
+        "403":
+          description: not a party to this payment
+          schema:
+            $ref: '#/definitions/types.apiError'
+        "404":
+          description: payment or proof not found
+          schema:
+            $ref: '#/definitions/types.apiError'
+      security:
+      - BearerAuth: []
+      summary: Get a payment's proof metadata
+      tags:
+      - payments
+    post:
+      consumes:
+      - application/json
+      - multipart/form-data
+      description: |-
+        **Key 1 of 2.** The debtor evidences that they paid their creditor in real life, moving the payment to `proof_submitted`. Also the way out of `disputed` — re-submit and both keys run again.
+
+        Accepts either shape:
+        - **JSON** `{"note": "paid 40 cash on day 3"}`
+        - **multipart/form-data** with an `image` file field (receipt or transfer screenshot)
+
+        Images are capped at 5 MiB and validated by **magic bytes** (jpeg/png/gif/webp) — never by file extension. The stored sha256 makes a later swap detectable.
+      parameters:
+      - description: payment id
+        format: uuid
+        in: path
+        name: id
+        required: true
+        type: string
+      - description: text note (JSON variant)
+        in: body
+        name: body
+        schema:
+          $ref: '#/definitions/types.SubmitProofRequest'
+      - description: receipt image, max 5 MiB (multipart variant)
+        in: formData
+        name: image
+        type: file
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: payment now proof_submitted
+          schema:
+            $ref: '#/definitions/types.PaymentView'
+        "400":
+          description: invalid id/body, oversized file, or not a real image
+          schema:
+            $ref: '#/definitions/types.apiError'
+        "401":
+          description: missing or invalid token
+          schema:
+            $ref: '#/definitions/types.apiError'
+        "403":
+          description: you are not this payment's debtor
+          schema:
+            $ref: '#/definitions/types.apiError'
+        "404":
+          description: payment not found
+          schema:
+            $ref: '#/definitions/types.apiError'
+        "409":
+          description: payment is not in a state that accepts proof
+          schema:
+            $ref: '#/definitions/types.apiError'
+      security:
+      - BearerAuth: []
+      summary: Upload proof of payment (debtor)
+      tags:
+      - payments
+  /payments/{id}/proof/image:
+    get:
+      description: Visible to the debtor, the creditor, and admins. Streams the stored
+        image from object storage with its real content type.
+      parameters:
+      - description: payment id
+        format: uuid
+        in: path
+        name: id
+        required: true
+        type: string
+      produces:
+      - image/jpeg
+      - image/png
+      responses:
+        "200":
+          description: the proof image
+          schema:
+            type: file
+        "400":
+          description: invalid payment id
+          schema:
+            $ref: '#/definitions/types.apiError'
+        "401":
+          description: missing or invalid token
+          schema:
+            $ref: '#/definitions/types.apiError'
+        "403":
+          description: not a party to this payment
+          schema:
+            $ref: '#/definitions/types.apiError'
+        "404":
+          description: no image proof on this payment
+          schema:
+            $ref: '#/definitions/types.apiError'
+      security:
+      - BearerAuth: []
+      summary: Download the proof image bytes
+      tags:
+      - payments
+  /payments/{id}/reject:
+    post:
+      description: The group-admin (own group) or global admin (any group) sends a
+        payment to `disputed`, returning it to the debtor to re-submit proof. `settled`
+        stays terminal — even for the global admin.
+      parameters:
+      - description: payment id
+        format: uuid
+        in: path
+        name: id
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: payment now disputed
+          schema:
+            $ref: '#/definitions/types.PaymentView'
+        "400":
+          description: invalid payment id
+          schema:
+            $ref: '#/definitions/types.apiError'
+        "401":
+          description: missing or invalid token
+          schema:
+            $ref: '#/definitions/types.apiError'
+        "403":
+          description: not an admin for this payment's group
+          schema:
+            $ref: '#/definitions/types.apiError'
+        "404":
+          description: payment not found
+          schema:
+            $ref: '#/definitions/types.apiError'
+        "409":
+          description: payment is already settled
+          schema:
+            $ref: '#/definitions/types.apiError'
+      security:
+      - BearerAuth: []
+      summary: Reject a payment back to disputed (admin)
+      tags:
+      - payments
+  /public/groups/{token}:
+    get:
+      description: '**The only unauthenticated group view** — no bearer token required.
+        Given a group''s shareable token, returns a deliberately minimal status (no
+        amounts, no member financials) so a link can be shared safely.'
+      parameters:
+      - description: group share token
+        format: uuid
+        in: path
+        name: token
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: minimal public status
+          schema:
+            $ref: '#/definitions/types.PublicGroupStatus'
+        "400":
+          description: invalid token
+          schema:
+            $ref: '#/definitions/types.apiError'
+        "404":
+          description: no group for this token
+          schema:
+            $ref: '#/definitions/types.apiError'
+      summary: Check a group's status by share token
+      tags:
+      - public
+  /register:
+    post:
+      description: Idempotent. Creates the local row for the bearer token's subject,
+        or links/returns the existing one. Login does this automatically — this endpoint
+        exists for tokens minted outside the login flow.
+      produces:
+      - application/json
+      responses:
+        "201":
+          description: the linked local account
+          schema:
+            $ref: '#/definitions/types.Principal'
+        "401":
+          description: missing or invalid token
+          schema:
+            $ref: '#/definitions/types.apiError'
+        "409":
+          description: email already registered to another subject
+          schema:
+            $ref: '#/definitions/types.apiError'
+      security:
+      - BearerAuth: []
+      summary: Link the caller's token to a local user row
+      tags:
+      - account
+  /verification:
+    post:
+      description: Moves your account `registered` -> `pending_verification`, putting
+        it in the global admin's queue. You must reach `verified` before you can join
+        a group, record expenses, or be settled against.
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: account now pending_verification
+          schema:
+            $ref: '#/definitions/types.Principal'
+        "401":
+          description: missing or invalid token
+          schema:
+            $ref: '#/definitions/types.apiError'
+        "403":
+          description: caller is not provisioned
+          schema:
+            $ref: '#/definitions/types.apiError'
+        "409":
+          description: account is not in a submittable state
+          schema:
+            $ref: '#/definitions/types.apiError'
+      security:
+      - BearerAuth: []
+      summary: Submit your account for verification
+      tags:
+      - account
+schemes:
+- http
+securityDefinitions:
+  BearerAuth:
+    description: 'Bearer token from POST /auth/login. Format: `Bearer <access_token>`'
+    in: header
+    name: Authorization
+    type: apiKey
+swagger: "2.0"
+tags:
+- description: Public session endpoints — login, refresh, logout, sign-up. No bearer
+    token required.
+  name: auth
+- description: 'The caller''s own account: identity, local-row linking, verification
+    submission.'
+  name: account
+- description: Trip groups — create, read, update, close (close computes the settlement).
+  name: groups
+- description: Join requests, approval/rejection, admin handoff, member removal.
+  name: membership
+- description: Recording and listing what each member paid, while the group is open.
+  name: expenses
+- description: Fair-share summary, the computed payment plan, and the report PDF.
+  name: settlement
+- description: 'The two-key confirmation flow: proof upload, creditor confirm/dispute,
+    admin finalize/reject.'
+  name: payments
+- description: Global-admin only — user verification and system-wide user/group management.
+  name: admin
+- description: Audit trail and reminder nudges.
+  name: ops
+- description: Unauthenticated endpoints — health and share-token group status.
+  name: public

@@ -1,4 +1,7 @@
-.PHONY: help tidy run build up down logs ps health db-reset clean kc-token kc-logs sqlc sqlc-vet seed test test-unit test-integration test-e2e test-pkg test-file
+.PHONY: help tidy run build up down logs ps health db-reset clean kc-token kc-logs sqlc sqlc-vet swagger seed test test-unit test-integration test-e2e test-pkg test-file
+
+# swag (OpenAPI generator) is pinned so regenerated specs stay reproducible.
+SWAG_VERSION := v1.16.6
 
 # sqlc runs via Docker (the local Go toolchain is too old to `go install` it).
 SQLC_IMAGE := sqlc/sqlc:1.27.0
@@ -31,6 +34,9 @@ sqlc: ## Generate type-safe Go from SQL into server/database/repo (sqlc via Dock
 
 sqlc-vet: ## Lint the SQL queries (sqlc vet via Docker)
 	$(SQLC_RUN) vet
+
+swagger: | $(GO_CACHE) ## Regenerate the OpenAPI spec into server/docs from the handler annotations
+	$(GO_RUN) go run github.com/swaggo/swag/cmd/swag@$(SWAG_VERSION) init -g main.go -o docs --parseDependency --parseInternal
 
 $(GO_CACHE):
 	@mkdir -p $@
