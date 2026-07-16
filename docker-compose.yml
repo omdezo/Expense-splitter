@@ -65,11 +65,16 @@ services:
       KC_HEALTH_ENABLED: "true"
       KC_HTTP_ENABLED: "true"
     volumes:
-      - ./keycloak/realm-export.json:/opt/keycloak/data/import/realm-export.json:ro
+      # The realm definition — clients, roles, settings. Deliberately contains NO
+      # users and NO credentials, so it is safe to import in production. Dev users
+      # are mounted separately by docker-compose.override.yml.
+      # Named <realm>-realm.json for Keycloak's split-file import format.
+      - ./keycloak/realm-export.json:/opt/keycloak/data/import/expense-splitter-realm.json:ro
 
   # Object storage for proof images (the DB keeps only metadata + sha256).
   minio:
-    image: minio/minio:latest
+    # Pinned — `latest` would make a redeploy pull an untested image.
+    image: minio/minio:RELEASE.2025-04-22T22-12-26Z
     restart: unless-stopped
     command: server /data --console-address ":9001"
     environment:

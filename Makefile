@@ -1,4 +1,4 @@
-.PHONY: help tidy run build up down logs ps health db-reset clean kc-token kc-logs sqlc sqlc-vet swagger seed up-prod down-prod logs-prod config-prod test test-unit test-integration test-e2e test-pkg test-file
+.PHONY: help tidy run build up down logs ps health db-reset clean kc-token kc-logs sqlc sqlc-vet swagger seed up-prod down-prod logs-prod config-prod seed-prod test test-unit test-integration test-e2e test-pkg test-file
 
 # Production compose = base + prod overlay (dev uses the auto-applied override).
 COMPOSE_PROD := docker compose -f docker-compose.yml -f docker-compose.prod.yml
@@ -26,8 +26,11 @@ tidy: ## Resolve and tidy Go module dependencies
 run: ## Run the server locally (loads server/.env if present; needs a reachable Postgres)
 	cd server && set -a && { test -f .env && . ./.env || true; } && set +a && go run . serve
 
-seed: ## Seed the default global admin (runs inside the running server container)
+seed: ## Seed the default global admin on the DEV stack
 	docker compose exec server ./server seed
+
+seed-prod: ## Seed the global admin on the PRODUCTION stack (GLOBAL_ADMIN_EMAIL from .env)
+	$(COMPOSE_PROD) exec server ./server seed
 
 build: ## Build the server binary into ./server/bin
 	cd server && go build -o bin/server .

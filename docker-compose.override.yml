@@ -27,6 +27,12 @@ services:
       # theme caching). The theme is already baked into the image by the
       # Dockerfile, so production does not need this mount.
       - ./keycloak/themes:/opt/keycloak/themes
+      # DEV USERS ONLY — admin/admin and alice/alice, with permanent known
+      # passwords. Mounted here and nowhere else: production imports the realm
+      # without them, so it never gets an account with a guessable password.
+      # Keycloak's split-import format: <realm>-users-<n>.json alongside
+      # <realm>-realm.json.
+      - ./keycloak/dev-users.json:/opt/keycloak/data/import/expense-splitter-users-0.json:ro
     ports:
       - "8081:8080"
 

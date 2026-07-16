@@ -10,7 +10,10 @@
   "accountTheme": "expense-splitter",
   "emailTheme": "expense-splitter",
   "internationalizationEnabled": true,
-  "supportedLocales": ["en", "ar"],
+  "supportedLocales": [
+    "en",
+    "ar"
+  ],
   "defaultLocale": "en",
   "roles": {
     "realm": [
@@ -30,8 +33,12 @@
       "directAccessGrantsEnabled": true,
       "serviceAccountsEnabled": false,
       "fullScopeAllowed": true,
-      "redirectUris": ["*"],
-      "webOrigins": ["*"],
+      "redirectUris": [
+        "*"
+      ],
+      "webOrigins": [
+        "*"
+      ],
       "protocolMappers": [
         {
           "name": "audience-expense-splitter-api",
@@ -45,40 +52,6 @@
           }
         }
       ]
-    }
-  ],
-  "users": [
-    {
-      "username": "admin@expense-splitter.local",
-      "email": "admin@expense-splitter.local",
-      "firstName": "Global",
-      "lastName": "Admin",
-      "emailVerified": true,
-      "enabled": true,
-      "credentials": [
-        {
-          "type": "password",
-          "value": "admin",
-          "temporary": false
-        }
-      ],
-      "realmRoles": ["default-roles-expense-splitter", "global_admin"]
-    },
-    {
-      "username": "alice@expense-splitter.local",
-      "email": "alice@expense-splitter.local",
-      "firstName": "Alice",
-      "lastName": "Member",
-      "emailVerified": true,
-      "enabled": true,
-      "credentials": [
-        {
-          "type": "password",
-          "value": "alice",
-          "temporary": false
-        }
-      ],
-      "realmRoles": ["default-roles-expense-splitter"]
     }
   ]
 }

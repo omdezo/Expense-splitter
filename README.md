@@ -164,6 +164,7 @@ make up-prod                   # PROD  — base + prod overlay
 | | Dev | Production |
 |---|---|---|
 | Secrets | dev defaults baked in (`postgres`, `admin`, `minioadmin`) | **required** — Compose refuses to start if any is unset |
+| Keycloak users | `admin/admin` + `alice/alice` imported from `keycloak/dev-users.json` | **none** — the realm file holds no users and no passwords |
 | Keycloak | `start-dev` (relaxed hostname, no caching) | `start` — strict hostname, trusts `X-Forwarded-*` from the proxy |
 | Theme | bind-mounted for live editing | served from the image |
 | Postgres | published on `5433` | **not published** — internal network only |
@@ -176,8 +177,9 @@ Because every prod secret uses the `${VAR:?}` form, a missing value is a **start
 required variable DB_PASSWORD is missing a value: DB_PASSWORD is required
 ```
 
-**Two things to get right when deploying:**
+**Three things to get right when deploying:**
 
+- **Create the global admin**: `make seed-prod` promotes the `GLOBAL_ADMIN_EMAIL` account. Production imports **no** users, so create that account in Keycloak first (admin console or the API) — dev's `admin/admin` does not exist there, by design.
 - **Put a TLS-terminating reverse proxy in front** (Caddy/nginx/Traefik). The API speaks plain HTTP and binds to loopback — nothing here should face the internet directly.
 - **`KEYCLOAK_PUBLIC_URL` must be the real browser-facing Keycloak URL.** Tokens are minted with it as their issuer and the API validates against it, so a mismatch means every request 401s. It sets both `KC_HOSTNAME` and the API's `KEYCLOAK_ISSUERS` from one variable, so they can't drift apart.
 
@@ -305,7 +307,8 @@ Unit tests are co-located with the code; the settlement algorithm, the 80-char t
 ├── postman/                    # importable Postman collection for every endpoint
 ├── keycloak/
 │   ├── Dockerfile              # stock Keycloak + custom theme baked in
-│   ├── realm-export.json       # auto-imported realm: client + seed users
+│   ├── realm-export.json       # auto-imported realm: client + roles. NO users, NO passwords
+│   ├── dev-users.json          # dev-only logins (admin/admin, alice/alice) — never mounted in prod
 │   └── themes/                 # login/account/email theme (en + ar)
 └── server/
     ├── main.go                 # entrypoint + the general OpenAPI annotations
