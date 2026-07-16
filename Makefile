@@ -1,4 +1,7 @@
-.PHONY: help tidy run build up down logs ps health db-reset clean kc-token kc-logs sqlc sqlc-vet swagger seed test test-unit test-integration test-e2e test-pkg test-file
+.PHONY: help tidy run build up down logs ps health db-reset clean kc-token kc-logs sqlc sqlc-vet swagger seed up-prod down-prod logs-prod config-prod test test-unit test-integration test-e2e test-pkg test-file
+
+# Production compose = base + prod overlay (dev uses the auto-applied override).
+COMPOSE_PROD := docker compose -f docker-compose.yml -f docker-compose.prod.yml
 
 # swag (OpenAPI generator) is pinned so regenerated specs stay reproducible.
 SWAG_VERSION := v1.16.6
@@ -65,7 +68,7 @@ test-file: | $(GO_CACHE) ## Run only the tests defined in one file (FILE=service
 		echo ">> $$f  ->  -run '$$names'"; \
 		$(GO_RUN) go test -v "./$$dir/" -run "$$names"
 
-up: ## Start db + server via docker compose
+up: ## Start the DEV stack (docker-compose.override.yml is applied automatically)
 	docker compose up --build -d
 
 down: ## Stop and remove containers
@@ -73,6 +76,18 @@ down: ## Stop and remove containers
 
 logs: ## Tail container logs
 	docker compose logs -f
+
+up-prod: ## Start the PRODUCTION stack (needs .env — see .env.prod.example)
+	$(COMPOSE_PROD) up --build -d
+
+down-prod: ## Stop the production stack
+	$(COMPOSE_PROD) down
+
+logs-prod: ## Tail production logs
+	$(COMPOSE_PROD) logs -f
+
+config-prod: ## Render + validate the production config (catches missing secrets)
+	$(COMPOSE_PROD) config
 
 ps: ## Show running services
 	docker compose ps

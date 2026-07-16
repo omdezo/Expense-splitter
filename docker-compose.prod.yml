@@ -1,0 +1,118 @@
+# PRODUCTION overlay.
+#
+#   docker compose -f docker-compose.yml -f docker-compose.prod.yml up -d --build
+#   (or: make up-prod / make down-prod / make logs-prod)
+#
+# Copy .env.prod.example to .env and fill it in first. Every secret below uses
+# the ${VAR:?...} form, so Compose REFUSES TO START if one is missing — a
+# production stack can never silently boot on the base file's dev defaults.
+#
+# What this overlay changes vs dev:
+#   - secrets are required, never defaulted
+#   - Keycloak runs `start` (production mode) with a strict hostname, and trusts
+#     X-Forwarded-* from the reverse proxy
+#   - the theme bind-mount is dropped (it is baked into the image)
+#   - Postgres/MinIO are NOT published to the internet; the API and Keycloak
+#     bind to loopback for a reverse proxy (Caddy/nginx/Traefik) to terminate TLS
+#   - logs are rotated, and every service has a memory ceiling
+#
+# ASSUMPTION: a reverse proxy in front terminates TLS and forwards to the
+# loopback ports below. Nothing here should face the internet directly — the
+# API speaks plain HTTP.
+services:
+  db:
+    # Not published. Reachable only on the internal compose network.
+    environment:
+      POSTGRES_USER: ${DB_USER:?DB_USER is required — copy .env.prod.example to .env}
+      POSTGRES_PASSWORD: ${DB_PASSWORD:?DB_PASSWORD is required — copy .env.prod.example to .env}
+      POSTGRES_DB: ${DB_NAME:?DB_NAME is required — copy .env.prod.example to .env}
+    logging: &logging
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
+    deploy:
+      resources:
+        limits:
+          memory: 1g
+
+  keycloak-db:
+    environment:
+      POSTGRES_USER: ${KC_DB_USER:?KC_DB_USER is required}
+      POSTGRES_PASSWORD: ${KC_DB_PASSWORD:?KC_DB_PASSWORD is required}
+    logging: *logging
+    deploy:
+      resources:
+        limits:
+          memory: 512m
+
+  keycloak:
+    # Production mode. Unlike start-dev this enforces hostname correctness and
+    # disables the dev shortcuts.
+    #
+    # NOTE: the image is not pre-built with `kc.sh build`, so Keycloak runs its
+    # build step at startup (it logs a non-optimized warning and boots slower).
+    # To make this `start --optimized`, add a `RUN /opt/keycloak/bin/kc.sh build
+    # --db=postgres` stage to keycloak/Dockerfile.
+    command: start --import-realm
+    environment:
+      KC_BOOTSTRAP_ADMIN_USERNAME: ${KC_ADMIN_USER:?KC_ADMIN_USER is required}
+      KC_BOOTSTRAP_ADMIN_PASSWORD: ${KC_ADMIN_PASSWORD:?KC_ADMIN_PASSWORD is required}
+      KC_DB_USERNAME: ${KC_DB_USER:?KC_DB_USER is required}
+      KC_DB_PASSWORD: ${KC_DB_PASSWORD:?KC_DB_PASSWORD is required}
+      # The browser-facing URL of Keycloak, e.g. https://auth.example.com.
+      # Tokens are minted with this as their issuer, so it MUST match what the
+      # API validates (KEYCLOAK_ISSUERS below, built from the same variable).
+      KC_HOSTNAME: ${KEYCLOAK_PUBLIC_URL:?KEYCLOAK_PUBLIC_URL is required, e.g. https://auth.example.com}
+      KC_HOSTNAME_STRICT: "true"
+      # TLS terminates at the reverse proxy; trust its forwarded headers so
+      # Keycloak builds correct absolute URLs.
+      KC_PROXY_HEADERS: xforwarded
+      KC_HTTP_ENABLED: "true"
+    # No volumes block needed: the theme bind-mount lives only in
+    # docker-compose.override.yml, which is NOT loaded for production, and the
+    # realm-export mount is inherited from the base file (start --import-realm
+    # depends on it).
+    ports:
+      - "127.0.0.1:8081:8080"
+    logging: *logging
+    deploy:
+      resources:
+        limits:
+          memory: 1g
+
+  minio:
+    # API + console stay on loopback. Expose the console publicly only behind
+    # the proxy with auth, or not at all.
+    ports:
+      - "127.0.0.1:9000:9000"
+      - "127.0.0.1:9001:9001"
+    environment:
+      MINIO_ROOT_USER: ${STORAGE_ACCESS_KEY:?STORAGE_ACCESS_KEY is required}
+      MINIO_ROOT_PASSWORD: ${STORAGE_SECRET_KEY:?STORAGE_SECRET_KEY is required}
+    logging: *logging
+    deploy:
+      resources:
+        limits:
+          memory: 1g
+
+  server:
+    environment:
+      DB_USER: ${DB_USER:?DB_USER is required}
+      DB_PASSWORD: ${DB_PASSWORD:?DB_PASSWORD is required}
+      DB_NAME: ${DB_NAME:?DB_NAME is required}
+      KEYCLOAK_ADMIN_USER: ${KC_ADMIN_USER:?KC_ADMIN_USER is required}
+      KEYCLOAK_ADMIN_PASSWORD: ${KC_ADMIN_PASSWORD:?KC_ADMIN_PASSWORD is required}
+      STORAGE_ACCESS_KEY: ${STORAGE_ACCESS_KEY:?STORAGE_ACCESS_KEY is required}
+      STORAGE_SECRET_KEY: ${STORAGE_SECRET_KEY:?STORAGE_SECRET_KEY is required}
+      # Must match KC_HOSTNAME above, or every token fails issuer validation.
+      KEYCLOAK_ISSUERS: ${KEYCLOAK_PUBLIC_URL:?KEYCLOAK_PUBLIC_URL is required}/realms/expense-splitter,http://keycloak:8080/realms/expense-splitter
+      GLOBAL_ADMIN_EMAIL: ${GLOBAL_ADMIN_EMAIL:?GLOBAL_ADMIN_EMAIL is required}
+    # Behind the reverse proxy — not published to the world.
+    ports:
+      - "127.0.0.1:8080:8080"
+    logging: *logging
+    deploy:
+      resources:
+        limits:
+          memory: 512m

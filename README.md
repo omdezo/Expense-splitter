@@ -117,6 +117,8 @@ docker compose up --build      # or: make up
 make seed                      # create the default global admin
 ```
 
+> Needs no configuration — the dev overlay is applied automatically. For the production stack see [Dev vs production](#dev-vs-production).
+
 | Service | URL | Notes |
 |---|---|---|
 | **API server** | http://localhost:8080 | |
@@ -137,6 +139,47 @@ curl http://localhost:8080/health
 ```bash
 make demo    # seeds a 2-member group (closed, one pending payment) and prints every id
 ```
+
+---
+
+## Dev vs production
+
+The stack is split across three Compose files, so dev stays zero-config while production can't inherit a dev shortcut by accident.
+
+| File | Role |
+|---|---|
+| `docker-compose.yml` | **Base** — service definitions shared by both. Never run alone. |
+| `docker-compose.override.yml` | **Dev** — applied *automatically* by `docker compose up`. |
+| `docker-compose.prod.yml` | **Production** — opt in explicitly with `-f`. |
+
+```bash
+make up                        # DEV   — override is auto-applied, no .env needed
+cp .env.prod.example .env      # fill in the secrets, then:
+make config-prod               # render + validate (catches anything missing)
+make up-prod                   # PROD  — base + prod overlay
+```
+
+**What production changes:**
+
+| | Dev | Production |
+|---|---|---|
+| Secrets | dev defaults baked in (`postgres`, `admin`, `minioadmin`) | **required** — Compose refuses to start if any is unset |
+| Keycloak | `start-dev` (relaxed hostname, no caching) | `start` — strict hostname, trusts `X-Forwarded-*` from the proxy |
+| Theme | bind-mounted for live editing | served from the image |
+| Postgres | published on `5433` | **not published** — internal network only |
+| API / Keycloak / MinIO | published on `0.0.0.0` | bound to **`127.0.0.1`**, for a reverse proxy to front |
+| Logs / memory | unbounded | rotated (10m x 3) and capped per service |
+
+Because every prod secret uses the `${VAR:?}` form, a missing value is a **startup error, not a silent fallback**:
+
+```
+required variable DB_PASSWORD is missing a value: DB_PASSWORD is required
+```
+
+**Two things to get right when deploying:**
+
+- **Put a TLS-terminating reverse proxy in front** (Caddy/nginx/Traefik). The API speaks plain HTTP and binds to loopback — nothing here should face the internet directly.
+- **`KEYCLOAK_PUBLIC_URL` must be the real browser-facing Keycloak URL.** Tokens are minted with it as their issuer and the API validates against it, so a mismatch means every request 401s. It sets both `KC_HOSTNAME` and the API's `KEYCLOAK_ISSUERS` from one variable, so they can't drift apart.
 
 ---
 
@@ -255,7 +298,10 @@ Unit tests are co-located with the code; the settlement algorithm, the 80-char t
 
 ```
 .
-├── docker-compose.yml
+├── docker-compose.yml          # base stack (shared; not run on its own)
+├── docker-compose.override.yml # dev overlay — auto-applied by `docker compose up`
+├── docker-compose.prod.yml     # production overlay — required secrets, hardened
+├── .env.prod.example           # template for the production secrets
 ├── postman/                    # importable Postman collection for every endpoint
 ├── keycloak/
 │   ├── Dockerfile              # stock Keycloak + custom theme baked in

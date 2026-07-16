@@ -1,0 +1,40 @@
+# DEV overlay — applied automatically by `docker compose up` / `make up`.
+#
+# Compose loads docker-compose.yml + docker-compose.override.yml by default, so
+# the dev stack needs no flags and no .env file: the base file's defaults
+# (postgres/postgres, admin/admin, minioadmin) fill everything in.
+#
+# What "dev" means here:
+#   - every service's port is published to the host so you can poke at it
+#   - Keycloak runs start-dev (HTTP, no clustering, no hostname strictness)
+#   - the theme is bind-mounted for live editing
+#
+# None of this is safe on a public host — that is what docker-compose.prod.yml
+# is for.
+services:
+  db:
+    # Published so you can psql straight into the app DB from the host.
+    # 5433 avoids clashing with a local Postgres on 5432.
+    ports:
+      - "5433:5432"
+
+  keycloak:
+    # dev mode (HTTP, no clustering, relaxed hostname) + auto-import the realm
+    # on first boot. Production uses `start` instead — see the prod overlay.
+    command: start-dev --import-realm
+    volumes:
+      # Live-edit the theme without rebuilding the image (start-dev disables
+      # theme caching). The theme is already baked into the image by the
+      # Dockerfile, so production does not need this mount.
+      - ./keycloak/themes:/opt/keycloak/themes
+    ports:
+      - "8081:8080"
+
+  minio:
+    ports:
+      - "9000:9000"   # S3 API
+      - "9001:9001"   # web console — minioadmin / minioadmin
+
+  server:
+    ports:
+      - "8080:8080"

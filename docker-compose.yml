@@ -1,17 +1,29 @@
+# Base stack — shared by dev and production.
+#
+# This file alone is NOT run directly. Compose composes it with an overlay:
+#
+#   dev   docker compose up                      (docker-compose.override.yml is auto-applied)
+#   prod  docker compose -f docker-compose.yml -f docker-compose.prod.yml up -d
+#
+# Everything environment-specific — published ports, credentials, Keycloak's
+# run mode — lives in the overlays. Defaults here are dev-friendly so `up` works
+# with zero configuration; docker-compose.prod.yml replaces every one of them
+# with a REQUIRED variable, so production can never silently boot on a default
+# password.
+name: expense-splitter
+
 services:
   db:
     image: postgres:16-alpine
     restart: unless-stopped
     environment:
-      POSTGRES_USER: postgres
-      POSTGRES_PASSWORD: postgres
-      POSTGRES_DB: expense_splitter
-    ports:
-      - "5433:5432"
+      POSTGRES_USER: ${DB_USER:-postgres}
+      POSTGRES_PASSWORD: ${DB_PASSWORD:-postgres}
+      POSTGRES_DB: ${DB_NAME:-expense_splitter}
     volumes:
       - pgdata:/var/lib/postgresql/data
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      test: ["CMD-SHELL", "pg_isready -U ${DB_USER:-postgres}"]
       interval: 5s
       timeout: 5s
       retries: 5
@@ -22,13 +34,13 @@ services:
     image: postgres:16-alpine
     restart: unless-stopped
     environment:
-      POSTGRES_USER: keycloak
-      POSTGRES_PASSWORD: keycloak
+      POSTGRES_USER: ${KC_DB_USER:-keycloak}
+      POSTGRES_PASSWORD: ${KC_DB_PASSWORD:-keycloak}
       POSTGRES_DB: keycloak
     volumes:
       - keycloak_pgdata:/var/lib/postgresql/data
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U keycloak"]
+      test: ["CMD-SHELL", "pg_isready -U ${KC_DB_USER:-keycloak}"]
       interval: 5s
       timeout: 5s
       retries: 5
@@ -38,30 +50,22 @@ services:
     build:
       context: ./keycloak
     restart: unless-stopped
-    # dev mode (HTTP, no clustering) + auto-import the realm on first boot.
-    command: start-dev --import-realm
     depends_on:
       keycloak-db:
         condition: service_healthy
     environment:
-      # Bootstrap admin for the Keycloak admin console (http://localhost:8081).
-      KC_BOOTSTRAP_ADMIN_USERNAME: admin
-      KC_BOOTSTRAP_ADMIN_PASSWORD: admin
+      # Bootstrap admin for the Keycloak admin console.
+      KC_BOOTSTRAP_ADMIN_USERNAME: ${KC_ADMIN_USER:-admin}
+      KC_BOOTSTRAP_ADMIN_PASSWORD: ${KC_ADMIN_PASSWORD:-admin}
       # Persist Keycloak state in its own Postgres.
       KC_DB: postgres
       KC_DB_URL: jdbc:postgresql://keycloak-db:5432/keycloak
-      KC_DB_USERNAME: keycloak
-      KC_DB_PASSWORD: keycloak
+      KC_DB_USERNAME: ${KC_DB_USER:-keycloak}
+      KC_DB_PASSWORD: ${KC_DB_PASSWORD:-keycloak}
       KC_HEALTH_ENABLED: "true"
       KC_HTTP_ENABLED: "true"
     volumes:
       - ./keycloak/realm-export.json:/opt/keycloak/data/import/realm-export.json:ro
-      # Dev convenience: live-edit the theme without rebuilding the image
-      # (start-dev disables theme caching). Remove this mount in production —
-      # the theme is already baked into the image by the Dockerfile.
-      - ./keycloak/themes:/opt/keycloak/themes
-    ports:
-      - "8081:8080"
 
   # Object storage for proof images (the DB keeps only metadata + sha256).
   minio:
@@ -69,13 +73,10 @@ services:
     restart: unless-stopped
     command: server /data --console-address ":9001"
     environment:
-      MINIO_ROOT_USER: minioadmin
-      MINIO_ROOT_PASSWORD: minioadmin
+      MINIO_ROOT_USER: ${STORAGE_ACCESS_KEY:-minioadmin}
+      MINIO_ROOT_PASSWORD: ${STORAGE_SECRET_KEY:-minioadmin}
     volumes:
       - minio_data:/data
-    ports:
-      - "9000:9000"
-      - "9001:9001"
     healthcheck:
       test: ["CMD", "mc", "ready", "local"]
       interval: 5s
@@ -95,33 +96,32 @@ services:
     environment:
       DB_HOST: db
       DB_PORT: 5432
-      DB_USER: postgres
-      DB_PASSWORD: postgres
-      DB_NAME: expense_splitter
+      DB_USER: ${DB_USER:-postgres}
+      DB_PASSWORD: ${DB_PASSWORD:-postgres}
+      DB_NAME: ${DB_NAME:-expense_splitter}
       # Keys are fetched over the internal docker network (always reachable),
-      # while the issuer we trust is the address tokens are actually minted from
-      # (the host-published :8081). Validating these two independently avoids
-      # Keycloak's host/container issuer-mismatch problem. Both issuers are
-      # accepted so tokens minted from inside the network also pass.
+      # while the issuer we trust is the address tokens are actually minted from.
+      # Validating these two independently avoids Keycloak's host/container
+      # issuer-mismatch problem. Both issuers are accepted so tokens minted from
+      # inside the network also pass. In production KEYCLOAK_PUBLIC_URL is the
+      # browser-facing Keycloak address (https://auth.example.com).
       KEYCLOAK_JWKS_URL: http://keycloak:8080/realms/expense-splitter/protocol/openid-connect/certs
-      KEYCLOAK_ISSUERS: http://localhost:8081/realms/expense-splitter,http://keycloak:8080/realms/expense-splitter
+      KEYCLOAK_ISSUERS: ${KEYCLOAK_PUBLIC_URL:-http://localhost:8081}/realms/expense-splitter,http://keycloak:8080/realms/expense-splitter
       KEYCLOAK_AUDIENCE: expense-splitter-api
       # Server-side calls into Keycloak: /auth/login (password grant on the public
-      # client) and /auth/register (create user via the admin API). BASE_URL is the
-      # internal address; admin creds match the bootstrap admin above.
+      # client) and /auth/register (create user via the admin API).
       KEYCLOAK_BASE_URL: http://keycloak:8080
       KEYCLOAK_REALM: expense-splitter
       KEYCLOAK_CLIENT_ID: expense-splitter-api
-      KEYCLOAK_ADMIN_USER: admin
-      KEYCLOAK_ADMIN_PASSWORD: admin
+      KEYCLOAK_ADMIN_USER: ${KC_ADMIN_USER:-admin}
+      KEYCLOAK_ADMIN_PASSWORD: ${KC_ADMIN_PASSWORD:-admin}
       # Proof-image object storage (MinIO, S3-compatible).
       STORAGE_ENDPOINT: minio:9000
-      STORAGE_ACCESS_KEY: minioadmin
-      STORAGE_SECRET_KEY: minioadmin
+      STORAGE_ACCESS_KEY: ${STORAGE_ACCESS_KEY:-minioadmin}
+      STORAGE_SECRET_KEY: ${STORAGE_SECRET_KEY:-minioadmin}
       STORAGE_BUCKET: proofs
       STORAGE_USE_SSL: "false"
-    ports:
-      - "8080:8080"
+      GLOBAL_ADMIN_EMAIL: ${GLOBAL_ADMIN_EMAIL:-admin@expense-splitter.local}
 
 volumes:
   pgdata:
